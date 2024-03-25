@@ -189,7 +189,7 @@ if not SKIP_CUDA_BUILD:
                 # "csrc/selective_scan/selective_scan_fwd_fp16.cu",
                 # "csrc/selective_scan/selective_scan_fwd_bf16.cu",
                 
-                #"csrc/selective_scan/selective_scan_bwd_fp32_real.cu",
+                "csrc/selective_scan/selective_scan_bwd_fp32_real.cu",
                 #"csrc/selective_scan/selective_scan_bwd_fp32_complex.cu",
                 #"csrc/selective_scan/selective_scan_bwd_fp16_real.cu",
                 #"csrc/selective_scan/selective_scan_bwd_fp16_complex.cu",

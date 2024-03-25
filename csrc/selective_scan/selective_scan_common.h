@@ -5,7 +5,7 @@
 #pragma once
 
 //#include <cuda_bf16.h>
-#include <hip/hip_bf16.h>
+//#include <hip/hip_bf16.h> // TODO: Why is there now again an include error?
 
 #include <cuda_fp16.h>
 #include <c10/util/complex.h>  // For scalar_value_type

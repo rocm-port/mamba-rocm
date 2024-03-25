@@ -27,9 +27,10 @@
 
 #pragma once
 
-#include <cub/config.cuh>
+#include <hipcub/hipcub.hpp>
+//#include <cub/config.cuh>
 
-#include <cuda/std/type_traits>
+//#include <cuda/std/type_traits>
 
 
 namespace detail

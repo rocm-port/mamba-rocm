@@ -9,10 +9,11 @@
 #include <c10/cuda/CUDAException.h>  // For C10_CUDA_CHECK and C10_CUDA_KERNEL_LAUNCH_CHECK
 #include <ATen/cuda/Atomic.cuh>  // For atomicAdd on complex
 
-#include <cub/block/block_load.cuh>
-#include <cub/block/block_store.cuh>
-#include <cub/block/block_scan.cuh>
-#include <cub/block/block_reduce.cuh>
+#include <hipcub/hipcub.hpp>
+// #include <cub/block/block_load.cuh>
+// #include <cub/block/block_store.cuh>
+// #include <cub/block/block_scan.cuh>
+// #include <cub/block/block_reduce.cuh>
 
 #include "selective_scan.h"
 #include "selective_scan_common.h"
@@ -47,20 +48,20 @@ struct Selective_Scan_bwd_kernel_traits {
     static constexpr int kMinBlocks = kNThreads == 128 && !kIsComplex ? 3 : 2;
     using vec_t = typename BytesToType<kNBytes * kNElts>::Type;
     using scan_t = std::conditional_t<!kIsComplex, float2, float4>;
-    using BlockLoadT = cub::BlockLoad<input_t, kNThreads, kNItems, cub::BLOCK_LOAD_WARP_TRANSPOSE>;
-    using BlockLoadVecT = cub::BlockLoad<vec_t, kNThreads, kNLoads, cub::BLOCK_LOAD_WARP_TRANSPOSE>;
-    using BlockLoadWeightT = cub::BlockLoad<input_t, kNThreads, !kIsComplex ? kNItems : kNItems * 2, cub::BLOCK_LOAD_WARP_TRANSPOSE>;
-    using BlockLoadWeightVecT = cub::BlockLoad<vec_t, kNThreads, !kIsComplex ? kNLoads : kNLoads * 2, cub::BLOCK_LOAD_WARP_TRANSPOSE>;
-    using BlockStoreT = cub::BlockStore<input_t, kNThreads, kNItems, cub::BLOCK_STORE_WARP_TRANSPOSE>;
-    using BlockStoreVecT = cub::BlockStore<vec_t, kNThreads, kNLoads, cub::BLOCK_STORE_WARP_TRANSPOSE>;
-    // using BlockScanT = cub::BlockScan<scan_t, kNThreads, cub::BLOCK_SCAN_RAKING_MEMOIZE>;
-    using BlockScanT = cub::BlockScan<scan_t, kNThreads, cub::BLOCK_SCAN_RAKING>;
-    // using BlockScanT = cub::BlockScan<scan_t, kNThreads, cub::BLOCK_SCAN_WARP_SCANS>;
+    using BlockLoadT = hipcub::BlockLoad<input_t, kNThreads, kNItems, hipcub::BLOCK_LOAD_WARP_TRANSPOSE>;
+    using BlockLoadVecT = hipcub::BlockLoad<vec_t, kNThreads, kNLoads, hipcub::BLOCK_LOAD_WARP_TRANSPOSE>;
+    using BlockLoadWeightT = hipcub::BlockLoad<input_t, kNThreads, !kIsComplex ? kNItems : kNItems * 2, hipcub::BLOCK_LOAD_WARP_TRANSPOSE>;
+    using BlockLoadWeightVecT = hipcub::BlockLoad<vec_t, kNThreads, !kIsComplex ? kNLoads : kNLoads * 2, hipcub::BLOCK_LOAD_WARP_TRANSPOSE>;
+    using BlockStoreT = hipcub::BlockStore<input_t, kNThreads, kNItems, hipcub::BLOCK_STORE_WARP_TRANSPOSE>;
+    using BlockStoreVecT = hipcub::BlockStore<vec_t, kNThreads, kNLoads, hipcub::BLOCK_STORE_WARP_TRANSPOSE>;
+    // using BlockScanT = hipcub::BlockScan<scan_t, kNThreads, hipcub::BLOCK_SCAN_RAKING_MEMOIZE>;
+    using BlockScanT = hipcub::BlockScan<scan_t, kNThreads, hipcub::BLOCK_SCAN_RAKING>;
+    // using BlockScanT = hipcub::BlockScan<scan_t, kNThreads, hipcub::BLOCK_SCAN_WARP_SCANS>;
     using BlockReverseScanT = BlockReverseScan<scan_t, kNThreads>;
-    using BlockReduceT = cub::BlockReduce<scan_t, kNThreads>;
-    using BlockReduceFloatT = cub::BlockReduce<float, kNThreads>;
-    using BlockReduceComplexT = cub::BlockReduce<complex_t, kNThreads>;
-    using BlockExchangeT = cub::BlockExchange<float, kNThreads, !kIsComplex ? kNItems : kNItems * 2>;
+    using BlockReduceT = hipcub::BlockReduce<scan_t, kNThreads>;
+    using BlockReduceFloatT = hipcub::BlockReduce<float, kNThreads>;
+    using BlockReduceComplexT = hipcub::BlockReduce<complex_t, kNThreads>;
+    using BlockExchangeT = hipcub::BlockExchange<float, kNThreads, !kIsComplex ? kNItems : kNItems * 2>;
     static constexpr int kSmemIOSize = std::max({sizeof(typename BlockLoadT::TempStorage),
                                                  sizeof(typename BlockLoadVecT::TempStorage),
                                                  (int(kIsVariableB) + int(kIsVariableC)) * sizeof(typename BlockLoadWeightT::TempStorage),
@@ -517,12 +518,12 @@ void selective_scan_bwd_launch(SSMParamsBwd &params, cudaStream_t stream) {
 
 template<typename input_t, typename weight_t>
 void selective_scan_bwd_cuda(SSMParamsBwd &params, cudaStream_t stream) {
-    if (params.seqlen <= 128) {
-        selective_scan_bwd_launch<32, 4, input_t, weight_t>(params, stream);
-    } else if (params.seqlen <= 256) {
-        selective_scan_bwd_launch<32, 8, input_t, weight_t>(params, stream);
+    if (params.seqlen <= 128) {   
+        selective_scan_bwd_launch<64, 4, input_t, weight_t>(params, stream); // TODO: changed 32 to 64, optimize, make conditional
+    } else if (params.seqlen <= 256) { // TODO: changed 32 to 64, optimize
+        selective_scan_bwd_launch<64, 8, input_t, weight_t>(params, stream); // TODO: changed 32 to 64, optimize, make conditional
     } else if (params.seqlen <= 512) {
-        selective_scan_bwd_launch<32, 16, input_t, weight_t>(params, stream);
+        selective_scan_bwd_launch<64, 16, input_t, weight_t>(params, stream); // TODO: changed 32 to 64, optimize, make conditional
     } else if (params.seqlen <= 1024) {
         selective_scan_bwd_launch<64, 16, input_t, weight_t>(params, stream);
     } else {
