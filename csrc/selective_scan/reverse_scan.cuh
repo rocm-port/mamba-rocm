@@ -4,6 +4,8 @@
 
 #pragma once
 
+
+#include <hipcub/hipcub.hpp>
 //#include <cub/config.cuh>
 
 // #include <cub/util_ptx.cuh>
@@ -12,6 +14,10 @@
 
 // #include <cub/detail/uninitialized_copy.cuh> - oridinal copy
 #include "uninitialized_copy.cuh"
+
+
+//static constexpr CUB_WARP_THREADS = 64; // TODO: properly set/disable on hipcub.
+
 
 /**
  * Perform a reverse sequential reduction over \p LENGTH elements of the \p input array.  The aggregate is returned.
@@ -90,7 +96,9 @@ struct WarpReverseScan {
     //---------------------------------------------------------------------
 
     /// Whether the logical warp size and the PTX warp size coincide
-    static constexpr bool IS_ARCH_WARP = (LOGICAL_WARP_THREADS == CUB_WARP_THREADS(0));
+    //static constexpr bool IS_ARCH_WARP = (LOGICAL_WARP_THREADS == HIPCUB_WARP_THREADS(0));
+    // TODO: check
+    static constexpr bool IS_ARCH_WARP = (LOGICAL_WARP_THREADS == HIPCUB_WARP_THREADS);
     /// The number of warp scan steps
     static constexpr int STEPS = hipcub::Log2<LOGICAL_WARP_THREADS>::VALUE;
     static_assert(LOGICAL_WARP_THREADS == 1 << STEPS);
