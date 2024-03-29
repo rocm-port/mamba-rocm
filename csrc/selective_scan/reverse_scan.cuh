@@ -15,10 +15,6 @@
 // #include <cub/detail/uninitialized_copy.cuh> - oridinal copy
 #include "uninitialized_copy.cuh"
 
-
-//static constexpr CUB_WARP_THREADS = 64; // TODO: properly set/disable on hipcub.
-
-
 /**
  * Perform a reverse sequential reduction over \p LENGTH elements of the \p input array.  The aggregate is returned.
  */
@@ -53,6 +49,7 @@ __device__ __forceinline__ T ThreadReverseScanInclusive(
         inclusive = scan_op(inclusive, input[i]);
         output[i] = inclusive;
     }
+    return inclusive;
 }
 
 /**
@@ -96,8 +93,10 @@ struct WarpReverseScan {
     //---------------------------------------------------------------------
 
     /// Whether the logical warp size and the PTX warp size coincide
-    //static constexpr bool IS_ARCH_WARP = (LOGICAL_WARP_THREADS == HIPCUB_WARP_THREADS(0));
-    // TODO: check
+    // static constexpr bool IS_ARCH_WARP = (LOGICAL_WARP_THREADS == HIPCUB_WARP_THREADS(0));
+    // TODO: notify hipcub code owners of the inconsistency (or hipify code owners)?
+    // In hipcub, warp_threads is defined as HIPCUB_WARP_THREADS ::rocprim::warp_size()
+    // While in cub, it's defined as a macro that takes a redundant unused argument.
     static constexpr bool IS_ARCH_WARP = (LOGICAL_WARP_THREADS == HIPCUB_WARP_THREADS);
     /// The number of warp scan steps
     static constexpr int STEPS = hipcub::Log2<LOGICAL_WARP_THREADS>::VALUE;
