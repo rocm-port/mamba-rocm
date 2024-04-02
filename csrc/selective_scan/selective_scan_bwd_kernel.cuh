@@ -33,7 +33,7 @@ template<> __device__ __forceinline__ complex_t conj<complex_t>(complex_t x) { r
 template<int kNThreads_, int kNItems_, bool kIsEvenLen_, bool kIsVariableB_, bool kIsVariableC_,
          bool kDeltaSoftplus_, bool kHasZ_, typename input_t_, typename weight_t_>
 struct Selective_Scan_bwd_kernel_traits {
-    static_assert(kNItems_ % 4 == 0);
+    static_assert(kNItems_ % 4 == 0); //TODO
     using input_t = input_t_;
     using weight_t = weight_t_;
     static constexpr int kNThreads = kNThreads_;
@@ -173,9 +173,11 @@ void selective_scan_bwd_kernel(SSMParamsBwd params) {
         // Will reload delta at the same location if kDeltaSoftplus
         if constexpr (!kDeltaSoftplus) { delta -= kChunkSize; }
         __syncthreads();
-        // load_input<Ktraits>(dout, dout_vals_load, smem_load, params.seqlen - chunk * kChunkSize);
+
+        load_input<Ktraits>(dout, dout_vals_load, smem_load, params.seqlen - chunk * kChunkSize);
+        // Uncommenting the line above results in hanging, even if __syncthreads(); is added here.
+        
         // dout -= kChunkSize;
-        // Uncommenting the above two lines results in hanging, even if __syncthreads(); is added here.
 
     //     float dout_vals[kNItems], delta_vals[kNItems];
     //     #pragma unroll

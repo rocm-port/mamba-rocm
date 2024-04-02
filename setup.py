@@ -162,16 +162,21 @@ if not SKIP_CUDA_BUILD:
     if FORCE_CXX11_ABI:
         torch._C._GLIBCXX_USE_CXX11_ABI = True
 
-    generator_flag = []
+    generator_flag = ["-ggdb", "-O0"] # Added -g for the debugger
     cc_flag.append("-DBUILD_PYTHON_PACKAGE")
+
+    cc_flag.append("--save-temps")
     
     ###FROM XFORMER:
     extra_compile_args = {
-        "cxx": ["-O3", "-std=c++17"] + generator_flag,
+        "cxx": [#"-O3", 
+                "-O0" # TODO for debugging
+                "-std=c++17"] + generator_flag,
         "nvcc": [
-            "-O3",
+            #"-O3",
             "-std=c++17",
             "-ferror-limit=20",#added
+            "-ggdb", "-O0", # TODO: for debugging
             f"--offload-arch={os.getenv('HIP_ARCHITECTURES', 'native')}",
             "-U__CUDA_NO_HALF_OPERATORS__",
             "-U__CUDA_NO_HALF_CONVERSIONS__",

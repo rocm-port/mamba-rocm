@@ -10,6 +10,9 @@ from einops import rearrange
 from mamba_ssm.ops.selective_scan_interface import selective_scan_fn, selective_scan_ref
 from mamba_ssm.ops.selective_scan_interface import mamba_inner_fn, mamba_inner_ref
 
+# import os
+# os.environ['CUDA_LAUNCH_BLOCKING'] = "1" # TODO - remove
+
 is_variable_B = True
 is_variable_C = True
 varBC_groups = True

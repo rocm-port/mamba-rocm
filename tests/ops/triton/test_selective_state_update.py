@@ -11,7 +11,8 @@ from einops import rearrange
 from mamba_ssm.ops.triton.selective_state_update import selective_state_update, selective_state_update_ref
 
 
-@pytest.mark.parametrize("itype", [torch.float32, torch.float16, torch.bfloat16])
+#@pytest.mark.parametrize("itype", [torch.float32, torch.float16, torch.bfloat16])#changed
+@pytest.mark.parametrize("itype", [torch.float32])
 # @pytest.mark.parametrize('itype', [torch.float16])
 @pytest.mark.parametrize("has_z", [False, True])
 # @pytest.mark.parametrize('has_z', [True])

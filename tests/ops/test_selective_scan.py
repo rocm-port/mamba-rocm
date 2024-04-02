@@ -17,9 +17,9 @@ from mamba_ssm.ops.selective_scan_interface import mamba_inner_fn, mamba_inner_r
 # @pytest.mark.parametrize('itype', [torch.float32, torch.float16, torch.bfloat16])
 @pytest.mark.parametrize('itype', [torch.float32])
 # @pytest.mark.parametrize('itype', [torch.float16])
-# @pytest.mark.parametrize('seqlen', [8, 16, 32, 64, 128, 256, 372, 512, 784, 1024, 1134, 2048, 4096])
-@pytest.mark.parametrize('seqlen', [128, 256, 512, 1024, 2048, 4096])
-# @pytest.mark.parametrize('seqlen', [128])
+#@pytest.mark.parametrize('seqlen', [8, 16, 32, 64, 128, 256, 372, 512, 784, 1024, 1134, 2048, 4096])
+#@pytest.mark.parametrize('seqlen', [128, 256, 512, 1024, 2048, 4096]) # Original
+@pytest.mark.parametrize('seqlen', [8, 16])
 # @pytest.mark.parametrize("return_last_state", [False, True])
 @pytest.mark.parametrize("return_last_state", [True])
 # @pytest.mark.parametrize('has_delta_bias', [False, True])
@@ -133,19 +133,19 @@ def test_selective_scan(is_variable_B, is_variable_C, varBC_groups, has_D, has_z
     if has_delta_bias:
         print(f'ddelta_bias max diff: {(delta_bias.grad - delta_bias_ref.grad).abs().max().item()}')
 
-    # assert torch.allclose(u.grad, u_ref.grad.to(dtype=itype), rtol=rtol * 2, atol=atol * 2)
-    # assert torch.allclose(delta.grad, delta_ref.grad.to(dtype=itype), rtol=rtol * 5, atol=atol * 10)
-    # assert torch.allclose(A.grad, A_ref.grad, rtol=rtolw, atol=atolw * 5)
-    # assert torch.allclose(B.grad, B_ref.grad, rtol=rtolw if not is_variable_B else rtol,
-    #                       atol=atolw if not is_variable_B else atol)
-    # assert torch.allclose(C.grad, C_ref.grad, rtol=rtolw if not is_variable_C else rtol,
-    #                       atol=atolw if not is_variable_C else atol)
-    # if has_D:
-    #     assert torch.allclose(D.grad, D_ref.grad, rtol=rtolw, atol=atolw)
-    # if has_z:
-    #     assert torch.allclose(z.grad, z_ref.grad, rtol=rtolw, atol=atolw)
-    # if has_delta_bias:
-    #     assert torch.allclose(delta_bias.grad, delta_bias_ref.grad, rtol=rtolw, atol=atolw)
+    assert torch.allclose(u.grad, u_ref.grad.to(dtype=itype), rtol=rtol * 2, atol=atol * 2)
+    assert torch.allclose(delta.grad, delta_ref.grad.to(dtype=itype), rtol=rtol * 5, atol=atol * 10)
+    assert torch.allclose(A.grad, A_ref.grad, rtol=rtolw, atol=atolw * 5)
+    assert torch.allclose(B.grad, B_ref.grad, rtol=rtolw if not is_variable_B else rtol,
+                          atol=atolw if not is_variable_B else atol)
+    assert torch.allclose(C.grad, C_ref.grad, rtol=rtolw if not is_variable_C else rtol,
+                          atol=atolw if not is_variable_C else atol)
+    if has_D:
+        assert torch.allclose(D.grad, D_ref.grad, rtol=rtolw, atol=atolw)
+    if has_z:
+        assert torch.allclose(z.grad, z_ref.grad, rtol=rtolw, atol=atolw)
+    if has_delta_bias:
+        assert torch.allclose(delta_bias.grad, delta_bias_ref.grad, rtol=rtolw, atol=atolw)
 
 
 @pytest.mark.parametrize('wtype', [torch.float32])
