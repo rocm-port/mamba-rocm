@@ -182,6 +182,10 @@ if not SKIP_CUDA_BUILD:
             "-U__CUDA_NO_HALF_CONVERSIONS__",
             "-DCK_FMHA_FWD_FAST_EXP2=1",
             "-fgpu-flush-denormals-to-zero",
+            "-U__CUDA_NO_BFLOAT16_OPERATORS__",
+            "-U__CUDA_NO_BFLOAT16_CONVERSIONS__",
+            "-U__CUDA_NO_BFLOAT162_OPERATORS__",
+            "-U__CUDA_NO_BFLOAT162_CONVERSIONS__",
         ]
         + generator_flag
         + cc_flag,

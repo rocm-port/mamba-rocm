@@ -21,7 +21,7 @@ has_z = True
 has_delta_bias = True
 delta_softplus = True
 return_last_state = True
-seqlen = 16
+seqlen = 256 #256
 itype = torch.float32
 wtype = torch.float32
 
@@ -100,11 +100,11 @@ if return_last_state:
 
 
 
-print("Completed the forward launch")
+print("Completed the forward launch", flush=True)
 
 
 torch.cuda.synchronize(device=None)
-print("Synced")
+print("Synced", flush=True)
 
 #torch.cuda.set_sync_debug_mode(1)
 
@@ -112,10 +112,10 @@ g = torch.randn_like(out)
 #out_ref.backward(g)
 out.backward(g)
 
-print("Completed the backward launch")
+print("Completed the backward launch", flush=True)
 
 torch.cuda.synchronize(device=None)
-print("Synced")
+print("Synced", flush=True)
 
 # tmp = u.grad
 # print(tmp)

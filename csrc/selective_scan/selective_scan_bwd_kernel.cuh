@@ -159,22 +159,35 @@ void selective_scan_bwd_kernel(SSMParamsBwd params) {
     // this fails (hangs) if reference backward is called in the python code.
 
     for (int chunk = params.n_chunks - 1; chunk >= 0; --chunk) {
-
+    
+        printf("1\n");
         
         input_t u_vals[kNItems];
         input_t delta_vals_load[kNItems];
         input_t dout_vals_load[kNItems];
         __syncthreads();
 
-        load_input<Ktraits>(u, u_vals, smem_load, params.seqlen - chunk * kChunkSize);
-        u -= kChunkSize;
-        __syncthreads();
-        load_input<Ktraits>(delta, delta_vals_load, smem_load, params.seqlen - chunk * kChunkSize);
-        // Will reload delta at the same location if kDeltaSoftplus
-        if constexpr (!kDeltaSoftplus) { delta -= kChunkSize; }
-        __syncthreads();
+        //printf("Synced once");
+        // load_input<Ktraits>(u, u_vals, smem_load, params.seqlen - chunk * kChunkSize);
+        // u -= kChunkSize;
+        // __syncthreads();
+        // //printf("Synced twice");
 
+        // load_input<Ktraits>(delta, delta_vals_load, smem_load, params.seqlen - chunk * kChunkSize);
+        // // Will reload delta at the same location if kDeltaSoftplus
+        // if constexpr (!kDeltaSoftplus) { delta -= kChunkSize; }
+        // __syncthreads();
+        
+        
+        printf("2\n");
         load_input<Ktraits>(dout, dout_vals_load, smem_load, params.seqlen - chunk * kChunkSize);
+
+        printf("L\n");
+        __syncthreads(); // TODO Added extra sync, remove
+        printf("F\n");
+
+        break;
+
         // Uncommenting the line above results in hanging, even if __syncthreads(); is added here.
         
         // dout -= kChunkSize;
@@ -542,8 +555,9 @@ void selective_scan_bwd_launch(SSMParamsBwd &params, cudaStream_t stream) {
 
                         kernel_fn<<<grid, Ktraits::kNThreads, kSmemSize, stream>>>(params);
                         C10_CUDA_KERNEL_LAUNCH_CHECK();
-
-                        
+                        //cudaDeviceSynchronize(); // TODO: remove, added for debugging (flushing printfs)
+                        //printf("Synced after backward kernel launch\n");
+                        //fflush(stdout);
 
 
                     });
@@ -555,15 +569,18 @@ void selective_scan_bwd_launch(SSMParamsBwd &params, cudaStream_t stream) {
 
 template<typename input_t, typename weight_t>
 void selective_scan_bwd_cuda(SSMParamsBwd &params, cudaStream_t stream) {
-    if (params.seqlen <= 128) {   
-        selective_scan_bwd_launch<64, 4, input_t, weight_t>(params, stream); // TODO: changed 32 to 64, optimize, make conditional
-    } else if (params.seqlen <= 256) { // TODO: changed 32 to 64, optimize
-        selective_scan_bwd_launch<64, 8, input_t, weight_t>(params, stream); // TODO: changed 32 to 64, optimize, make conditional
-    } else if (params.seqlen <= 512) {
-        selective_scan_bwd_launch<64, 16, input_t, weight_t>(params, stream); // TODO: changed 32 to 64, optimize, make conditional
-    } else if (params.seqlen <= 1024) {
-        selective_scan_bwd_launch<64, 16, input_t, weight_t>(params, stream);
-    } else {
-        selective_scan_bwd_launch<128, 16, input_t, weight_t>(params, stream);
-    }
+
+
+    // TODO: chenged both first and the second numbers in some cases. Find reasonable combinations, make conditional.
+    // if (params.seqlen <= 128) {   
+    //     selective_scan_bwd_launch<64, 4, input_t, weight_t>(params, stream); // TODO: changed 32 to 64. optimize, make conditional. Use a different min knitems?
+    // } else if (params.seqlen <= 256) { // TODO: changed 32 to 64, optimize
+    //     selective_scan_bwd_launch<64, 4, input_t, weight_t>(params, stream); // TODO: changed 32 to 64, optimize, make conditional. Changed 8 to 4 to get even len?
+    // } else if (params.seqlen <= 512) {
+    //     selective_scan_bwd_launch<64, 8, input_t, weight_t>(params, stream); // TODO: changed 32 to 64, optimize, make conditional
+    // } else if (params.seqlen <= 1024) {
+    //     selective_scan_bwd_launch<64, 8, input_t, weight_t>(params, stream);
+    // } else {
+        selective_scan_bwd_launch<128, 8, input_t, weight_t>(params, stream);
+    // }
 }

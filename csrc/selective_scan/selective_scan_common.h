@@ -153,6 +153,32 @@ inline __device__ void load_input(typename Ktraits::input_t *u,
                                   typename Ktraits::BlockLoadT::TempStorage &smem_load,
                                   int seqlen) {
     if constexpr (Ktraits::kIsEvenLen) {
+        printf("e\n");
+        auto& smem_load_vec = reinterpret_cast<typename Ktraits::BlockLoadVecT::TempStorage&>(smem_load);
+        using vec_t = typename Ktraits::vec_t;
+        printf("E\n");
+        // ROCM: Added typename TODO: check
+        typename Ktraits::BlockLoadVecT(smem_load_vec).Load(
+            reinterpret_cast<vec_t*>(u),
+            reinterpret_cast<vec_t(&)[Ktraits::kNLoads]>(u_vals)
+       );
+       printf("D\n");
+    } else {
+
+        printf("o\n");
+        // ROCM: Added typename: check
+        typename Ktraits::BlockLoadT(smem_load).Load(u, u_vals, seqlen, 0.f);
+        printf("O\n");
+    }
+}
+
+
+template<typename Ktraits>
+inline __device__ void load_input_fwd(typename Ktraits::input_t *u,
+                                  typename Ktraits::input_t (&u_vals)[Ktraits::kNItems],
+                                  typename Ktraits::BlockLoadT::TempStorage &smem_load,
+                                  int seqlen) {
+    if constexpr (Ktraits::kIsEvenLen) {
         auto& smem_load_vec = reinterpret_cast<typename Ktraits::BlockLoadVecT::TempStorage&>(smem_load);
         using vec_t = typename Ktraits::vec_t;
 
@@ -161,12 +187,14 @@ inline __device__ void load_input(typename Ktraits::input_t *u,
             reinterpret_cast<vec_t*>(u),
             reinterpret_cast<vec_t(&)[Ktraits::kNLoads]>(u_vals)
        );
+       printf("f");
     } else {
-
         // ROCM: Added typename: check
         typename Ktraits::BlockLoadT(smem_load).Load(u, u_vals, seqlen, 0.f);
+        printf("F");
     }
 }
+
 
 template<typename Ktraits>
 inline __device__ void load_weight(typename Ktraits::input_t *Bvar,
