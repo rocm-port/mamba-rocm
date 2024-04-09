@@ -52,6 +52,7 @@ struct Selective_Scan_bwd_kernel_traits {
     // Setting MinBlocksPerMP to be 3 (instead of 2) for 128 threads with float improves occupancy.
     // For complex this would lead to massive register spilling, so we keep it at 2.
     static constexpr int kMinBlocks = kNThreads == 128 && !kIsComplex ? 3 : 2;
+
     using vec_t = typename BytesToType<kNBytes * kNElts>::Type;
     using scan_t = std::conditional_t<!kIsComplex, float2, float4>;
     using BlockLoadT = hipcub::BlockLoad<input_t, kNThreads, kNItems, hipcub::BLOCK_LOAD_WARP_TRANSPOSE>;
@@ -158,6 +159,15 @@ void selective_scan_bwd_kernel(SSMParamsBwd params) {
     // return;
     // this fails (hangs) if reference backward is called in the python code.
 
+
+    const int threadsPerBlock  = blockDim.x * blockDim.y;
+    const int threadNumInBlock = threadIdx.x + blockDim.x * threadIdx.y;
+    const int blockNumInGrid   = blockIdx.x  + gridDim.x  * blockIdx.y;
+    const int globalThreadNum = blockNumInGrid * threadsPerBlock + threadNumInBlock;
+    
+
+    printf("Global thread id = %d", globalThreadNum);
+
     for (int chunk = params.n_chunks - 1; chunk >= 0; --chunk) {
     
         printf("1\n");
@@ -183,7 +193,7 @@ void selective_scan_bwd_kernel(SSMParamsBwd params) {
         load_input<Ktraits>(dout, dout_vals_load, smem_load, params.seqlen - chunk * kChunkSize);
 
         printf("L\n");
-        __syncthreads(); // TODO Added extra sync, remove
+        //__syncthreads(); // TODO Added extra sync, remove
         printf("F\n");
 
         break;
@@ -525,6 +535,10 @@ void selective_scan_bwd_kernel(SSMParamsBwd params) {
     //                     !kIsVariableB ? dBC_val * conj(B[state_idx * params.B_dstate_stride]) : dBC_val);
     //     }
     }
+
+
+    // Todo: added an extra syncthreads here, remove
+    __syncthreads();
 }
 
 template<int kNThreads, int kNItems, typename input_t, typename weight_t>
@@ -546,10 +560,10 @@ void selective_scan_bwd_launch(SSMParamsBwd &params, cudaStream_t stream) {
 
                         //const decltype(&selective_scan_fwd_kernel<Ktraits>) kernel = &selective_scan_fwd_kernel<Ktraits>;
 
-                        if (kSmemSize >= 48 * 1024) {
-                            C10_CUDA_CHECK(cudaFuncSetAttribute(
-                                kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, kSmemSize));
-                        }  
+                        // if (kSmemSize >= 48 * 1024) {
+                        //     C10_CUDA_CHECK(cudaFuncSetAttribute(
+                        //         kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, kSmemSize));
+                        // }  
 
                         auto kernel_fn = (void (*const)(SSMParamsBase)) kernel; // Todo - double-check. Had to add this C-style conversion. // TODO: change to reinterpret cast?
 
@@ -573,7 +587,7 @@ void selective_scan_bwd_cuda(SSMParamsBwd &params, cudaStream_t stream) {
 
     // TODO: chenged both first and the second numbers in some cases. Find reasonable combinations, make conditional.
     // if (params.seqlen <= 128) {   
-    //     selective_scan_bwd_launch<64, 4, input_t, weight_t>(params, stream); // TODO: changed 32 to 64. optimize, make conditional. Use a different min knitems?
+    selective_scan_bwd_launch<64, 4, input_t, weight_t>(params, stream); // TODO: changed 32 to 64. optimize, make conditional. Use a different min knitems?
     // } else if (params.seqlen <= 256) { // TODO: changed 32 to 64, optimize
     //     selective_scan_bwd_launch<64, 4, input_t, weight_t>(params, stream); // TODO: changed 32 to 64, optimize, make conditional. Changed 8 to 4 to get even len?
     // } else if (params.seqlen <= 512) {
@@ -581,6 +595,6 @@ void selective_scan_bwd_cuda(SSMParamsBwd &params, cudaStream_t stream) {
     // } else if (params.seqlen <= 1024) {
     //     selective_scan_bwd_launch<64, 8, input_t, weight_t>(params, stream);
     // } else {
-        selective_scan_bwd_launch<128, 8, input_t, weight_t>(params, stream);
+    //    selective_scan_bwd_launch<128, 8, input_t, weight_t>(params, stream);
     // }
 }
