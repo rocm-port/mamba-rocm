@@ -560,10 +560,10 @@ void selective_scan_bwd_launch(SSMParamsBwd &params, cudaStream_t stream) {
 
                         //const decltype(&selective_scan_fwd_kernel<Ktraits>) kernel = &selective_scan_fwd_kernel<Ktraits>;
 
-                        // if (kSmemSize >= 48 * 1024) {
-                        //     C10_CUDA_CHECK(cudaFuncSetAttribute(
-                        //         kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, kSmemSize));
-                        // }  
+                        if (kSmemSize >= 48 * 1024) {
+                            C10_CUDA_CHECK(cudaFuncSetAttribute(
+                                kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, kSmemSize));
+                        }  
 
                         auto kernel_fn = (void (*const)(SSMParamsBase)) kernel; // Todo - double-check. Had to add this C-style conversion. // TODO: change to reinterpret cast?
 
