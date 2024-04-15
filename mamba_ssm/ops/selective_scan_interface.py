@@ -59,8 +59,23 @@ class SelectiveScanFn(torch.autograd.Function):
             out = None
         else:
             u, delta, A, B, C, D, z, delta_bias, x, out = ctx.saved_tensors
-        if dout.stride(-1) != 1:
+        
+        
+        # Testing
+        dout = delta.clone() + 1
+        dout.requires_grad = True
+        # Testing
+
+        if dout.stride(-1) != 1 or not dout.is_contiguous():
+            print("Making contiguous!")
             dout = dout.contiguous()
+
+
+        print(f"Dout info:\nShape: {dout.shape}\nDtype: {dout.dtype}\nDevice: {dout.device}\nData: {dout}\nStride: {dout.stride()}")
+        print(f"Delta info:\nShape: {delta.shape}\nDtype: {delta.dtype}\nDevice: {delta.device}\nData: {delta}\nStride: {delta.stride()}")
+
+        
+
         # The kernel supports passing in a pre-allocated dz (e.g., in case we want to fuse the
         # backward of selective_scan_cuda with the backward of chunk).
         # Here we just pass in None and dz will be allocated in the C++ code.

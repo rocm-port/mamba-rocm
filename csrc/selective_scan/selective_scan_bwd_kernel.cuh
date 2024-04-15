@@ -189,7 +189,7 @@ void selective_scan_bwd_kernel(SSMParamsBwd params) {
         // __syncthreads();
         
         
-        printf("2\n");
+        printf("2\n");     // TODO: figure out why it works if using delta pointer instead of "dout" as first argument.
         load_input<Ktraits>(dout, dout_vals_load, smem_load, params.seqlen - chunk * kChunkSize);
 
         printf("L\n");
@@ -560,7 +560,10 @@ void selective_scan_bwd_launch(SSMParamsBwd &params, cudaStream_t stream) {
 
                         //const decltype(&selective_scan_fwd_kernel<Ktraits>) kernel = &selective_scan_fwd_kernel<Ktraits>;
 
+                        printf("Launching a kernel function");
+                        printf("Memory size: %d", kSmemSize);
                         if (kSmemSize >= 48 * 1024) {
+                            printf("Setting a special ksmemsize");
                             C10_CUDA_CHECK(cudaFuncSetAttribute(
                                 kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, kSmemSize));
                         }  

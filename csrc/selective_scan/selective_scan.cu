@@ -373,6 +373,7 @@ selective_scan_fwd(const at::Tensor &u, const at::Tensor &delta,
     return result;
 }
 
+
 std::vector<at::Tensor>
 selective_scan_bwd(const at::Tensor &u, const at::Tensor &delta,
                   const at::Tensor &A, const at::Tensor &B, const at::Tensor &C,
@@ -385,8 +386,6 @@ selective_scan_bwd(const at::Tensor &u, const at::Tensor &delta,
                   c10::optional<at::Tensor> &dz_,
                   bool delta_softplus,
                   bool recompute_out_z) {
-
-    
     auto input_type = u.scalar_type();
     auto weight_type = A.scalar_type();
     TORCH_CHECK(input_type == at::ScalarType::Float || input_type == at::ScalarType::Half || input_type == at::ScalarType::BFloat16);
@@ -505,7 +504,6 @@ selective_scan_bwd(const at::Tensor &u, const at::Tensor &delta,
     at::Tensor ddelta_bias;
     if (delta_bias_.has_value()) { ddelta_bias = torch::zeros_like(delta_bias_.value()); }
 
-    // TODO: fix
     SSMParamsBwd params;
     set_ssm_params_bwd(params, batch_size, dim, seqlen, dstate, n_groups, n_chunks, is_variable_B, is_variable_C,
                        u, delta, A, B, C, z, out, out_z,
@@ -526,12 +524,12 @@ selective_scan_bwd(const at::Tensor &u, const at::Tensor &delta,
             selective_scan_bwd_cuda<input_t, weight_t>(params, stream);
         });
     });
-
     std::vector<at::Tensor> result = {du, ddelta, dA, dB.to(B.dtype()), dC.to(C.dtype()), dD, ddelta_bias};
     if (has_z) { result.push_back(dz); }
     if (recompute_out_z) { result.push_back(out_z); }
     return result;
 }
+
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
     m.def("fwd", &selective_scan_fwd, "Selective scan forward");

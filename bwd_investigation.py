@@ -21,13 +21,13 @@ has_z = True
 has_delta_bias = True
 delta_softplus = True
 return_last_state = True
-seqlen = 256 #256
+seqlen = 2 #256
 itype = torch.float32
 wtype = torch.float32
 
 if varBC_groups > 1 and (not is_variable_B or not is_variable_C):
     pytest.skip()  # This config is not applicable
-device = 'cuda:3' # gives a memory access error on cuda:3, but crashes silently on just cuda (default).
+device = 'cuda:0' # gives a memory access error on cuda:3, but crashes silently on just cuda (default).
 rtol, atol = (6e-4, 2e-3) if itype == torch.float32 else (3e-3, 5e-3)
 if itype == torch.bfloat16:
     rtol, atol = 3e-2, 5e-2
@@ -109,8 +109,16 @@ print("Synced", flush=True)
 #torch.cuda.set_sync_debug_mode(1)
 
 g = torch.randn_like(out).contiguous()
-#out_ref.backward(g)
 out.backward(g)
+
+# Another way to get the same error:
+# l = out.sum()
+#l.backward()
+
+
+#out_ref.backward(g)
+
+
 
 print("Completed the backward launch", flush=True)
 

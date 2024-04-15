@@ -162,7 +162,7 @@ if not SKIP_CUDA_BUILD:
     if FORCE_CXX11_ABI:
         torch._C._GLIBCXX_USE_CXX11_ABI = True
 
-    generator_flag = ["-ggdb", "-O0"] # Added -g for the debugger
+    generator_flag = ["-g", "-O0"] # Added -g for the debugger. Used -ggdb, but switched to g as per this thread: https://github.com/ROCm/ROCgdb/issues/14
     cc_flag.append("-DBUILD_PYTHON_PACKAGE")
 
     cc_flag.append("--save-temps")
@@ -176,7 +176,7 @@ if not SKIP_CUDA_BUILD:
             #"-O3",
             "-std=c++17",
             "-ferror-limit=20",#added
-            "-ggdb", "-O0", # TODO: for debugging
+            "-g", "-O0", # TODO: for debugging # tried -ggdb also
             f"--offload-arch={os.getenv('HIP_ARCHITECTURES', 'native')}",
             "-U__CUDA_NO_HALF_OPERATORS__",
             "-U__CUDA_NO_HALF_CONVERSIONS__",
