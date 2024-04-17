@@ -59,13 +59,12 @@ class SelectiveScanFn(torch.autograd.Function):
             out = None
         else:
             u, delta, A, B, C, D, z, delta_bias, x, out = ctx.saved_tensors
-        
-        
+                
         # Testing
-        dout = delta.clone() + 1
-        dout.requires_grad = True
+        # dout = delta.clone() + 1
+        # dout.requires_grad = True
         # Testing
-
+        
         if dout.stride(-1) != 1 or not dout.is_contiguous():
             print("Making contiguous!")
             dout = dout.contiguous()
