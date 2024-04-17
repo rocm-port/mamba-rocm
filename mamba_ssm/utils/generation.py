@@ -132,6 +132,7 @@ def decode(
     vocab_size=None,
     cg=False,
     enable_timing=False,
+    perf_log=None,
     streamer: Optional[TextStreamer] = None
 ):
     """Decoding, either greedy or with top-k or top-p sampling.
@@ -211,12 +212,17 @@ def decode(
         return False
 
     start = torch.cuda.Event(enable_timing=enable_timing)
+    prompt_end = torch.cuda.Event(enable_timing=enable_timing)
+    tok_start = torch.cuda.Event(enable_timing=enable_timing)
     end = torch.cuda.Event(enable_timing=enable_timing)
 
+    if perf_log:
+        enable_timing = True
     if enable_timing:
         start.record()
     scores, sequences = [], [input_ids]
     sequences_cat = input_ids
+    record_event = enable_timing
     while not should_stop(sequences[-1], inference_params):
         scores.append(get_logits(sequences[-1], inference_params))
         inference_params.seqlen_offset += sequences[-1].shape[1]
@@ -231,12 +237,52 @@ def decode(
         sequences.append(sampled_tokens)
         if streamer is not None:
             streamer.put(sampled_tokens.cpu())
-    if streamer is not None:
-        streamer.end()
+        if record_event:
+            prompt_end.record()
+            tok_start.record()
+            record_event = False
+
     if enable_timing:
         end.record()
         torch.cuda.synchronize()
-        print(f"Prompt processing + decoding time: {(start.elapsed_time(end)):.0f}ms")
+        latency = start.elapsed_time(end)
+        print(f"Prompt processing + decoding time: {(latency):.0f}ms")
+        if perf_log:
+            perf = { "total_latency": latency,
+                        "input_shape": input_ids.shape,
+                        "output_shape": sequences_cat.shape,
+                        "promptlen":  input_ids.shape[1],
+                        "batch": input_ids.shape[0],
+                        "ntokens": (sequences_cat.shape[-1] - input_ids.shape[1]),
+                        "prompt_latency": start.elapsed_time(prompt_end),
+                        "tokens_latency": tok_start.elapsed_time(end),
+                        "toks": (input_ids.shape[0]*(sequences_cat.shape[-1] - input_ids.shape[1]))/(tok_start.elapsed_time(end)*1e-3),
+            }
+            import json
+            import os.path
+            perf_file = perf_log+".json"
+            if os.path.exists(perf_file):
+                with open(perf_file, "r") as f:
+                    perf_str = f.read()
+                perf_dicts = json.loads(perf_str)
+            else:
+                perf_dicts = {key: [] for key in perf}
+            for k, v in perf.items():
+                perf_dicts[k].append(v)
+
+            with open(perf_file, 'w') as f:
+                json.dump(perf_dicts, f)
+
+            print(f"perf_log:input = {perf['input_shape']}")
+            print(f"perf_log:output = {perf['output_shape']}")
+            print(f"perf_log:Prompt processing + decoding time: {(perf['total_latency']):.0f}ms")
+            print(f"perf_log:Prompt time: {(perf['prompt_latency']):.0f}ms")
+            print(f"perf_log:Token generation time: {(perf['tokens_latency']):.0f}ms")
+            print(f"perf_log:Token/s for decoding: {(perf['toks']):.0f}")
+
+    if streamer is not None:
+        streamer.end()
+
     output_cls = GreedySearchDecoderOnlyOutput if top_k == 1 else SampleDecoderOnlyOutput
     return output_cls(sequences=torch.cat(sequences, dim=1), scores=tuple(scores))
 
