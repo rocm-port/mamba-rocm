@@ -256,7 +256,8 @@ def decode(
                         "ntokens": (sequences_cat.shape[-1] - input_ids.shape[1]),
                         "prompt_latency": start.elapsed_time(prompt_end),
                         "tokens_latency": tok_start.elapsed_time(end),
-                        "toks": (input_ids.shape[0]*(sequences_cat.shape[-1] - input_ids.shape[1]))/(tok_start.elapsed_time(end)*1e-3),
+                        "toks_w_prompt": (input_ids.shape[0]*(sequences_cat.shape[-1] - input_ids.shape[1]))/(start.elapsed_time(end)*1e-3),
+                        "toks_wo_prompt": (input_ids.shape[0]*(sequences_cat.shape[-1] - input_ids.shape[1]))/(tok_start.elapsed_time(end)*1e-3),
             }
             import json
             import os.path
@@ -278,7 +279,8 @@ def decode(
             print(f"perf_log:Prompt processing + decoding time: {(perf['total_latency']):.0f}ms")
             print(f"perf_log:Prompt time: {(perf['prompt_latency']):.0f}ms")
             print(f"perf_log:Token generation time: {(perf['tokens_latency']):.0f}ms")
-            print(f"perf_log:Token/s for decoding: {(perf['toks']):.0f}")
+            print(f"perf_log:Token/s w/ prompt : {(perf['toks_w_prompt']):.0f}")
+            print(f"perf_log:Token/s w/o prompt : {(perf['toks_wo_prompt']):.0f}")
 
     if streamer is not None:
         streamer.end()
