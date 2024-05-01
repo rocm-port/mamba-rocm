@@ -14,6 +14,7 @@ from mamba_ssm.models.config_mamba import MambaConfig
 from mamba_ssm.modules.mamba_simple import Mamba, Block
 from mamba_ssm.utils.generation import GenerationMixin
 from mamba_ssm.utils.hf import load_config_hf, load_state_dict_hf
+from mamba_ssm.utils.amd import hip_optimize_linear
 
 try:
     from mamba_ssm.ops.triton.layernorm import RMSNorm, layer_norm_fn, rms_norm_fn
@@ -244,6 +245,7 @@ class MambaLMHeadModel(nn.Module, GenerationMixin):
         config = MambaConfig(**config_data)
         model = cls(config, device=device, dtype=dtype, **kwargs)
         model.load_state_dict(load_state_dict_hf(pretrained_model_name, device=device, dtype=dtype))
+        hip_optimize_linear(model)
         return model
 
     def save_pretrained(self, save_directory):
