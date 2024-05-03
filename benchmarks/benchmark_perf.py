@@ -347,14 +347,15 @@ import triton.ops.matmul as triton_matmul
 import torch.nn as nn
 @triton.testing.perf_report(
     triton.testing.Benchmark(
-        x_names=['M', 'N', 'K'],  # Argument names to use as an x-axis for the plot
-        x_vals=[
-            (32*2048, 8192, 2048), # in_proj
-            (32*2048, 160, 4096), # x_proj
-            (32*2048, 4096, 128), # dt_proj
-            (32*2048, 2048, 4096), # out_proj
-            # (131072, 4096, 2048)
-        ],  # Different possible values for `x_name`
+        x_names=['index'],  # Argument names to use as an x-axis for the plot
+        x_vals=range(4),
+        # x_vals=[
+        #     (32*2048, 8192, 2048), # in_proj
+        #     (32*2048, 160, 4096), # x_proj
+        #     (32*2048, 4096, 128), # dt_proj
+        #     (32*2048, 2048, 4096), # out_proj
+        #     # (131072, 4096, 2048)
+        # ],  # Different possible values for `x_name`
         line_arg='provider',  # Argument name whose value corresponds to a different line in the plot
         # Possible values for `line_arg`
         line_vals=['rocblas', 'linear', 'linear-a.t', 'rocblas-a.t-b.t', 'rocblas-a.t', 'rocblas-b.t'], #, "triton_matmul"],
@@ -368,12 +369,21 @@ import torch.nn as nn
         plot_name=f"gemm_perf_{args.dtype}",  # Name for the plot, used also as a file name for saving the plot.
         args={},
     ))
-def benchmark(M, N, K, provider, dtype=torch.float16):
-    a = torch.randn((M, K), device='cuda', dtype=dtype)
-    b = torch.randn((K, N), device='cuda', dtype=dtype)
+def benchmark(index, provider, dtype=args.dtype):
+    mapping=[
+            (32*2048, 8192, 2048), # in_proj
+            (32*2048, 160, 4096), # x_proj
+            (32*2048, 4096, 128), # dt_proj
+            (32*2048, 2048, 4096), # out_proj
+            # (131072, 4096, 2048)
+        ]  # Different possible values for `x_name`
+    M, N, K  = mapping[index]
+    print(f"## {provider} benchmark {M}, {N}, {K} ##")
+    print(dtype)
+    a = torch.randn((M, K), dtype=dtype, device='cuda')
+    b = torch.randn((K, N), dtype=dtype, device='cuda')
     # b = torch.randn((N, K), device='cuda', dtype=dtype)
     # b = b.t()
-    print(f"## {provider} benchmark {M}, {N}, {K} ##")
     quantiles = [0.5, 0.2, 0.8]
     if provider == 'linear-a.t':
         a = torch.randn((K, M), device='cuda', dtype=dtype)
@@ -429,7 +439,7 @@ def benchmark(M, N, K, provider, dtype=torch.float16):
 gemm_test = True
 if gemm_test:
     print(f"Running matmul benchmark!!")
-    benchmark.run(show_plots=True, print_data=True, save_path='.', dtype=args.dtype)
+    benchmark.run(show_plots=True, print_data=True, save_path='.')
 
 # run_benchmark(args, B=[1,2,4,8,16,32,64,128], N=[16,32,64,128,256,512,1024,2048])
 # run_benchmark(args, B=[1], N=[128, 256])
