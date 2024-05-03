@@ -341,6 +341,96 @@ def write2csv(perf_log):
         for row in transposed_data:
             writer.writerow(row)
 
+
+import triton
+import triton.ops.matmul as triton_matmul
+import torch.nn as nn
+@triton.testing.perf_report(
+    triton.testing.Benchmark(
+        x_names=['M', 'N', 'K'],  # Argument names to use as an x-axis for the plot
+        x_vals=[
+            (32*2048, 8192, 2048), # in_proj
+            (32*2048, 160, 4096), # x_proj
+            (32*2048, 4096, 128), # dt_proj
+            (32*2048, 2048, 4096), # out_proj
+            # (131072, 4096, 2048)
+        ],  # Different possible values for `x_name`
+        line_arg='provider',  # Argument name whose value corresponds to a different line in the plot
+        # Possible values for `line_arg`
+        line_vals=['rocblas', 'linear', 'linear-a.t', 'rocblas-a.t-b.t', 'rocblas-a.t', 'rocblas-b.t'], #, "triton_matmul"],
+        # Label name for the lines
+        line_names=["rocBLAS", 'torch.linear', 'torch.linear-a.t', 'rocblas-a.t-b.t', 'rocblas-a.t', 'rocblas-b.t'], #, "triton_matmul"],
+        # Line styles
+        # styles=[('green', '-'), ('blue', '-'), ('red', '-'), ('red', '--')],
+        styles=[('k', '--'), ('k', '-'), ('red', '-'), ('red', '--'), ('g', '-'), ('g', '--'), ('b', '-'), ('b', '--'),
+                ('m', '-'), ('m', '--'), ('c', '-'), ('y', '-')],
+        ylabel="TFLOPS",  # Label name for the y-axis
+        plot_name=f"gemm_perf_{args.dtype}",  # Name for the plot, used also as a file name for saving the plot.
+        args={},
+    ))
+def benchmark(M, N, K, provider, dtype=torch.float16):
+    a = torch.randn((M, K), device='cuda', dtype=dtype)
+    b = torch.randn((K, N), device='cuda', dtype=dtype)
+    # b = torch.randn((N, K), device='cuda', dtype=dtype)
+    # b = b.t()
+    print(f"## {provider} benchmark {M}, {N}, {K} ##")
+    quantiles = [0.5, 0.2, 0.8]
+    if provider == 'linear-a.t':
+        a = torch.randn((K, M), device='cuda', dtype=dtype)
+        a = a.t()
+        out_proj = nn.Linear(K, N, device='cuda', dtype=dtype)
+        # w = out_proj.weight.t()
+        # w = w.contiguous()
+        # out_proj.weight =  torch.nn.Parameter(w.t())
+        fn = lambda: out_proj(a)
+        ms, min_ms, max_ms = triton.testing.do_bench(fn, quantiles=quantiles)
+    elif provider == 'linear':
+        out_proj = nn.Linear(K, N, device='cuda', dtype=dtype)
+        fn = lambda: out_proj(a)
+        ms, min_ms, max_ms = triton.testing.do_bench(fn, quantiles=quantiles)
+    elif provider == 'rocblas':
+        fn = lambda: torch.matmul(a, b)
+        ms, min_ms, max_ms = triton.testing.do_bench(lambda: fn(), quantiles=quantiles)
+    elif provider == 'rocblas-a.t':
+        a = torch.randn((K, M), device='cuda', dtype=dtype)
+        a = a.t()
+        fn = lambda: torch.matmul(a, b)
+        ms, min_ms, max_ms = triton.testing.do_bench(lambda: fn(), quantiles=quantiles)
+    elif provider == 'rocblas-b.t':
+        b = torch.randn((N, K), device='cuda', dtype=dtype)
+        b = b.t()
+        fn = lambda: torch.matmul(a, b)
+        ms, min_ms, max_ms = triton.testing.do_bench(lambda: fn(), quantiles=quantiles)
+    elif provider == 'rocblas-a.t-b.t':
+        a = torch.randn((K, M), device='cuda', dtype=dtype)
+        b = torch.randn((N, K), device='cuda', dtype=dtype)
+        a = a.t()
+        b = b.t()
+        fn = lambda: torch.matmul(a, b)
+        ms, min_ms, max_ms = triton.testing.do_bench(lambda: fn(), quantiles=quantiles)
+    elif provider == 'triton' or provider == 'triton_matmul':
+        ms, min_ms, max_ms = triton.testing.do_bench(lambda: triton_matmul(a, b), quantiles=quantiles)
+        fn = lambda: triton_matmul(a, b)
+    perf = lambda ms: 2 * M * N * K * 1e-12 / (ms * 1e-3)
+    # perf = lambda ms: ms
+    print(f"latency: ms : {ms}")
+    # return perf(ms), perf(max_ms), perf(min_ms)
+    print(f"tflops: {perf(ms)}")
+
+    c = fn()
+    dsize = a.nelement() * a.element_size() + b.nelement() * b.element_size() + c.nelement() * c.element_size()
+    mem_bw = lambda ms: (dsize * 1e-9) / (ms * 1e-3)
+    print(f"{provider}:{M},{N},{K}")
+    print(f"mem bw: GB/s: {mem_bw(ms)}")
+
+    return perf(ms), perf(max_ms), perf(min_ms)
+
+
+gemm_test = True
+if gemm_test:
+    print(f"Running matmul benchmark!!")
+    benchmark.run(show_plots=True, print_data=True, save_path='.', dtype=args.dtype)
+
 # run_benchmark(args, B=[1,2,4,8,16,32,64,128], N=[16,32,64,128,256,512,1024,2048])
 # run_benchmark(args, B=[1], N=[128, 256])
 # run_benchmark(args, B=[64], N=[16,32,64,128,256,512,1024,2048])
