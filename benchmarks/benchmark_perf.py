@@ -18,7 +18,7 @@ parser = argparse.ArgumentParser(description="Generation benchmarking")
 parser.add_argument("--model-name", type=str, default="state-spaces/mamba-1.4b")
 parser.add_argument("--prompt", type=str, default=None)
 parser.add_argument("--promptlen", type=int, default=2048)
-parser.add_argument("--genlen", type=int, default=128)
+parser.add_argument("--genlen", type=int, default=4)
 parser.add_argument("--temperature", type=float, default=0.7)
 parser.add_argument("--topk", type=int, default=1)
 parser.add_argument("--topp", type=float, default=0.9)
@@ -348,7 +348,7 @@ import torch.nn as nn
 @triton.testing.perf_report(
     triton.testing.Benchmark(
         x_names=['index'],  # Argument names to use as an x-axis for the plot
-        x_vals=range(4),
+        x_vals=range(8),
         # x_vals=[
         #     (32*2048, 8192, 2048), # in_proj
         #     (32*2048, 160, 4096), # x_proj
@@ -375,7 +375,11 @@ def benchmark(index, provider, dtype=args.dtype):
             (32*2048, 160, 4096), # x_proj
             (32*2048, 4096, 128), # dt_proj
             (32*2048, 2048, 4096), # out_proj
-            # (131072, 4096, 2048)
+            (32, 8192, 2048), # in_proj
+            (32, 160, 4096), # x_proj
+            (32, 4096, 128), # dt_proj
+            (32, 2048, 4096), # out_proj
+
         ]  # Different possible values for `x_name`
     M, N, K  = mapping[index]
     print(f"## {provider} benchmark {M}, {N}, {K} ##")
@@ -444,6 +448,6 @@ if gemm_test:
 # run_benchmark(args, B=[1,2,4,8,16,32,64,128], N=[16,32,64,128,256,512,1024,2048])
 # run_benchmark(args, B=[1], N=[128, 256])
 # run_benchmark(args, B=[64], N=[16,32,64,128,256,512,1024,2048])
-# run_benchmark(args, B=[32], N=[2048], cg=True)
-run_benchmark(args, B=[1,2,4,8,16,32,64,128], N=[2048], cg=True)
+run_benchmark(args, B=[32], N=[2048], cg=False)
+#run_benchmark(args, B=[1,2,4,8,16,32,64,128], N=[2048], cg=True)
 write2csv(args.perf_log)
