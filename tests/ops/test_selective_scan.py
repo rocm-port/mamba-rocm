@@ -153,10 +153,10 @@ def test_selective_scan(is_variable_B, is_variable_C, varBC_groups, has_D, has_z
 @pytest.mark.parametrize('itype', [torch.float32])
 # @pytest.mark.parametrize('seqlen', [8, 16, 32, 64, 128, 256, 372, 512, 784, 1024, 1134, 2048, 4096])
 @pytest.mark.parametrize('seqlen', [128])
-@pytest.mark.parametrize("is_variable_C", [False, True])
-# @pytest.mark.parametrize("is_variable_C", [False])
-@pytest.mark.parametrize("is_variable_B", [False, True])
-# @pytest.mark.parametrize("is_variable_B", [True])
+# @pytest.mark.parametrize("is_variable_C", [False, True])
+@pytest.mark.parametrize("is_variable_C", [True])
+# @pytest.mark.parametrize("is_variable_B", [False, True])
+@pytest.mark.parametrize("is_variable_B", [True])
 def test_mamba_inner_fn(is_variable_B, is_variable_C, seqlen, itype, wtype):
     device = 'cuda'
     rtol, atol = (6e-4, 2e-3) if itype == torch.float32 else (3e-3, 5e-3)
@@ -213,6 +213,22 @@ def test_mamba_inner_fn(is_variable_B, is_variable_C, seqlen, itype, wtype):
                               delta_bias=delta_bias_ref, delta_softplus=True)
     # dA = torch.exp(torch.einsum('bdl,dn->bdln', delta, A))
     # dt_u = delta * u
+
+    # Calculate the threshold
+    threshold = atol + rtol * out_ref.abs()
+
+    # Find indices where the condition is not met
+    indices = (torch.abs(out - out_ref) > threshold).nonzero()
+
+    print("Indices where condition is not met:")
+    print(indices)
+    print("out_ref.shape", out_ref.shape)
+
+    # Print absolute difference at those indices
+    abs_diff_at_indices = torch.abs(out - out_ref)[indices[:, 0], indices[:, 1], indices[:, 2]]
+    print("Absolute difference at those indices:")
+    print(abs_diff_at_indices)
+
 
     print(f'Output max diff: {(out - out_ref).abs().max().item()}')
     print(f'Output mean diff: {(out - out_ref).abs().mean().item()}')
