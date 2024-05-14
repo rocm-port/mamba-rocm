@@ -170,6 +170,7 @@ class MambaInnerFn(torch.autograd.Function):
         """
         assert causal_conv1d_cuda is not None, "causal_conv1d_cuda is not available. Please install causal-conv1d."
         assert checkpoint_lvl in [0, 1]
+        print('Hello')
         L = xz.shape[-1]
         delta_rank = delta_proj_weight.shape[1]
         d_state = A.shape[-1] * (1 if not A.is_complex() else 2)
@@ -190,6 +191,9 @@ class MambaInnerFn(torch.autograd.Function):
         # We're being very careful here about the layout, to avoid extra transposes.
         # We want delta to have d as the slowest moving dimension
         # and L as the fastest moving dimension, since those are what the ssm_scan kernel expects.
+        print("x_proj_weight.shape", x_proj_weight.shape)
+        print("conv1d_out.shape", conv1d_out.shape)
+        print("x_dbl input contiguous",rearrange(conv1d_out, 'b d l -> (b l) d').is_contiguous())
         x_dbl = F.linear(rearrange(conv1d_out, 'b d l -> (b l) d'), x_proj_weight)  # (bl d)
         delta = rearrange(delta_proj_weight @ x_dbl[:, :delta_rank].t(), "d (b l) -> b d l", l = L)
         ctx.is_variable_B = B is None
@@ -233,7 +237,15 @@ class MambaInnerFn(torch.autograd.Function):
         ctx.save_for_backward(xz, conv1d_weight, conv1d_bias, x_dbl, x_proj_weight,
                               delta_proj_weight, out_proj_weight, conv1d_out, delta,
                               A, B, C, D, delta_bias, scan_intermediates, out)
-        return F.linear(rearrange(out_z, "b d l -> b l d"), out_proj_weight, out_proj_bias)
+        temp = rearrange(out_z, "b d l -> b l d")
+        torch.save(temp, "../culprit_tensor.pth")
+
+        # temp = temp.contiguous()
+        print("last layer input  Is contiguous:", temp.is_contiguous())
+        # print("  Strides:", temp.stride())
+        # print("  Memory layout:", temp.layout)
+
+        return F.linear(temp, out_proj_weight, out_proj_bias)
 
     @staticmethod
     @custom_bwd
@@ -354,4 +366,11 @@ def mamba_inner_ref(
         else:
             C = rearrange(C, "(b l) (dstate two) -> b dstate (l two)", l=L, two=2).contiguous()
     y = selective_scan_fn(x, delta, A, B, C, D, z=z, delta_bias=delta_bias, delta_softplus=True)
-    return F.linear(rearrange(y, "b d l -> b l d"), out_proj_weight, out_proj_bias)
+    print("ref:: before rarrange", y.is_contiguous())
+    temp = rearrange(y, "b d l -> b l d")
+    # temp = temp.contiguous()
+    print("ref::last layer input  Is contiguous:", temp.is_contiguous())
+    # print("  Strides:", temp.stride())
+    # print("  Memory layout:", temp.layout)
+
+    return F.linear(temp, out_proj_weight, out_proj_bias)

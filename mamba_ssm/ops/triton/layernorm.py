@@ -50,13 +50,13 @@ def rms_norm_ref(x, weight, bias, residual=None, eps=1e-6, prenorm=False, upcast
 def config_prune(configs):
 
     if torch.version.hip:
-        gcn_arch_name = torch.cuda.get_device_properties(0).gcnArchName
-        if "gfx10" in gcn_arch_name or "gfx11" in gcn_arch_name:
-            # radeon
-            warp_size = 32
-        else:
-            # instinct
-            warp_size = 64
+        # gcn_arch_name = torch.cuda.get_device_properties(0).gcnArchName
+        # if "gfx10" in gcn_arch_name or "gfx11" in gcn_arch_name:
+        #     # radeon
+        #     warp_size = 32
+        # else:
+        # instinct
+        warp_size = 64
     else:
         # cuda 
         warp_size = 32    

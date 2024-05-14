@@ -17,7 +17,8 @@ from mamba_ssm.ops.selective_scan_interface import mamba_inner_fn, mamba_inner_r
 # @pytest.mark.parametrize('itype', [torch.float32, torch.float16, torch.bfloat16])
 @pytest.mark.parametrize('itype', [torch.float32])
 # @pytest.mark.parametrize('seqlen', [8, 16, 32, 64, 128, 256, 372, 512, 784, 1024, 1134, 2048, 4096])
-@pytest.mark.parametrize('seqlen', [128, 256, 512, 1024, 2048, 4096])
+# @pytest.mark.parametrize('seqlen', [128, 256, 512, 1024, 2048, 4096])
+@pytest.mark.parametrize('seqlen', [128])
 # @pytest.mark.parametrize('seqlen', [128])
 # @pytest.mark.parametrize("return_last_state", [False, True])
 @pytest.mark.parametrize("return_last_state", [True])
@@ -29,7 +30,8 @@ from mamba_ssm.ops.selective_scan_interface import mamba_inner_fn, mamba_inner_r
 @pytest.mark.parametrize('has_z', [True])
 # @pytest.mark.parametrize('has_D', [False, True])
 @pytest.mark.parametrize('has_D', [True])
-@pytest.mark.parametrize("varBC_groups", [1, 2])
+@pytest.mark.parametrize("varBC_groups", [1])
+# @pytest.mark.parametrize("varBC_groups", [1, 2])
 # @pytest.mark.parametrize("varBC_groups", [1])
 # @pytest.mark.parametrize("is_variable_C", [False, True])
 @pytest.mark.parametrize("is_variable_C", [True])
@@ -50,7 +52,7 @@ def test_selective_scan(is_variable_B, is_variable_C, varBC_groups, has_D, has_z
     # set seed
     torch.random.manual_seed(0)
     batch_size = 2
-    dim = 4
+    dim = 768
     dstate = 8
     is_complex = wtype == torch.complex64
     A = (-0.5 * torch.rand(dim, dstate, device=device, dtype=wtype)).requires_grad_()
@@ -146,8 +148,8 @@ def test_selective_scan(is_variable_B, is_variable_C, varBC_groups, has_D, has_z
     if has_delta_bias:
         assert torch.allclose(delta_bias.grad, delta_bias_ref.grad, rtol=rtolw, atol=atolw)
 
-
-@pytest.mark.parametrize('wtype', [torch.float32, torch.complex64])
+# @pytest.mark.parametrize('wtype', [torch.float32, torch.complex64])
+@pytest.mark.parametrize('wtype', [torch.float32])
 # @pytest.mark.parametrize('wtype', [torch.complex64])
 # @pytest.mark.parametrize('itype', [torch.float32, torch.float16, torch.bfloat16])
 @pytest.mark.parametrize('itype', [torch.float32])
@@ -181,6 +183,7 @@ def test_mamba_inner_fn(is_variable_B, is_variable_C, seqlen, itype, wtype):
                                 dim, device=device, dtype=itype, requires_grad=True)
     delta_proj_weight = torch.randn(dim, dt_rank, device=device, dtype=itype, requires_grad=True)
     out_proj_weight = torch.randn(dim // 2, dim, device=device, dtype=itype, requires_grad=True)
+    torch.save(out_proj_weight, "../out_proj_weight.pth")
     out_proj_bias = None
     A = (-0.5 * torch.rand(dim, dstate, device=device, dtype=wtype)).requires_grad_()
     B = (torch.randn(dim, dstate, device=device, dtype=wtype, requires_grad=True)
@@ -214,25 +217,33 @@ def test_mamba_inner_fn(is_variable_B, is_variable_C, seqlen, itype, wtype):
     # dA = torch.exp(torch.einsum('bdl,dn->bdln', delta, A))
     # dt_u = delta * u
 
-    # Calculate the threshold
-    threshold = atol + rtol * out_ref.abs()
+    # # Calculate the threshold
+    # threshold = atol + rtol * out_ref.abs()
 
-    # Find indices where the condition is not met
-    indices = (torch.abs(out - out_ref) > threshold).nonzero()
+    # # Find indices where the condition is not met
+    # indices = (torch.abs(out - out_ref) > threshold).nonzero()
 
-    print("Indices where condition is not met:")
-    print(indices)
-    print("out_ref.shape", out_ref.shape)
+    # print("Indices where condition is not met:")
+    # print(indices)
+    # print("out_ref.shape", out_ref.shape)
 
-    # Print absolute difference at those indices
-    abs_diff_at_indices = torch.abs(out - out_ref)[indices[:, 0], indices[:, 1], indices[:, 2]]
-    print("Absolute difference at those indices:")
-    print(abs_diff_at_indices)
+    # # Print absolute difference at those indices
+    # abs_diff_at_indices = torch.abs(out - out_ref)[indices[:, 0], indices[:, 1], indices[:, 2]]
+    # print("Absolute difference at those indices:")
+    # print(abs_diff_at_indices)
 
+    # assert torch.allclose(conv1d_out, conv1d_out_ref, rtol=rtol, atol=atol)
+    # assert torch.allclose(x_dbl, x_dbl_ref, rtol=rtol, atol=atol)
+    # print(delta_rank, delta_rank_ref)
+    # assert delta_rank == delta_rank_ref
 
-    print(f'Output max diff: {(out - out_ref).abs().max().item()}')
-    print(f'Output mean diff: {(out - out_ref).abs().mean().item()}')
-    assert torch.allclose(out, out_ref, rtol=rtol, atol=atol)
+    print("out.dtype", out.dtype, out_ref.dtype)
+    compare_tensor(out, out_ref, rtol, atol, verbose=True)
+    # print("out shape", out.shape, out_ref.shape)
+    # assert(out.shape == out_ref.shape)
+    # print(f'Output max diff: {(out - out_ref).abs().max().item()}')
+    # print(f'Output mean diff: {(out - out_ref).abs().mean().item()}')
+    # assert torch.allclose(out, out_ref, rtol=rtol, atol=atol)
 
     g = torch.randn_like(out)
     out_ref.backward(g)
@@ -251,6 +262,7 @@ def test_mamba_inner_fn(is_variable_B, is_variable_C, seqlen, itype, wtype):
     print(f'dx_proj_weight max diff: {(x_proj_weight.grad - x_proj_weight_ref.grad).abs().max().item()}')
     print(f'dconv1d_weight max diff: {(conv1d_weight.grad - conv1d_weight_ref.grad).abs().max().item()}')
     print(f'dconv1d_bias max diff: {(conv1d_bias.grad - conv1d_bias_ref.grad).abs().max().item()}')
+    assert 1==0
 
     # assert torch.allclose(xz.grad, xz_ref.grad.to(dtype=itype), rtol=rtol * 2, atol=atol * 2)
     # assert torch.allclose(delta.grad, delta_ref.grad.to(dtype=itype), rtol=rtol * 5, atol=atol * 10)
@@ -261,3 +273,22 @@ def test_mamba_inner_fn(is_variable_B, is_variable_C, seqlen, itype, wtype):
     #                       atol=atolw if not is_variable_C else atol)
     # assert torch.allclose(D.grad, D_ref.grad, rtol=rtolw, atol=atolw)
     # assert torch.allclose(delta_bias.grad, delta_bias_ref.grad, rtol=rtolw, atol=atolw)
+
+def compare_tensor(out, out_ref, rtol, atol, verbose=False):
+    """
+    Compare two torch tensors and assert if they are equal within a tolerance.
+
+    Args:
+        out (torch.Tensor): The output tensor to be compared.
+        out_ref (torch.Tensor): The reference output tensor.
+        rtol (float, optional): The relative tolerance. Defaults to 1e-5.
+        atol (float, optional): The absolute tolerance. Defaults to 1e-8.
+        verbose (bool, optional): Whether to print verbose output. Defaults to False.
+    """
+    if verbose:
+        print("out shape", out.shape, out_ref.shape)
+    assert(out.shape == out_ref.shape)
+    if verbose:
+        print(f'Output max diff: {(out - out_ref).abs().max().item()}')
+        print(f'Output mean diff: {(out - out_ref).abs().mean().item()}')
+    assert torch.allclose(out, out_ref, rtol=rtol, atol=atol)
