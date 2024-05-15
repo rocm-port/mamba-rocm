@@ -173,10 +173,10 @@ def test_mamba_inner_fn(is_variable_B, is_variable_C, seqlen, itype, wtype):
     dstate = 8
     dt_rank = 48
     is_complex = wtype == torch.complex64
-    xz = torch.randn(batch_size, 2 * dim, seqlen, device=device, dtype=itype, requires_grad=True)
+    xz = 0.1*torch.randn(batch_size, 2 * dim, seqlen, device=device, dtype=itype, requires_grad=True)
     conv1d_weight = torch.randn(dim, 1, 3, device=device, dtype=torch.float32, requires_grad=True)
     conv1d_bias = torch.randn(dim, device=device, dtype=torch.float32, requires_grad=True)
-    x_proj_weight = torch.randn(dt_rank + (bool(is_variable_B) + bool(is_variable_C)) * dstate
+    x_proj_weight = 0.1*torch.randn(dt_rank + (bool(is_variable_B) + bool(is_variable_C)) * dstate
                                 * (1 if not is_complex else 2),
                                 dim, device=device, dtype=itype, requires_grad=True)
     delta_proj_weight = torch.randn(dim, dt_rank, device=device, dtype=itype, requires_grad=True)
@@ -259,17 +259,17 @@ def test_mamba_inner_fn(is_variable_B, is_variable_C, seqlen, itype, wtype):
     print(f'dx_proj_weight max diff: {(x_proj_weight.grad - x_proj_weight_ref.grad).abs().max().item()}')
     print(f'dconv1d_weight max diff: {(conv1d_weight.grad - conv1d_weight_ref.grad).abs().max().item()}')
     print(f'dconv1d_bias max diff: {(conv1d_bias.grad - conv1d_bias_ref.grad).abs().max().item()}')
-    assert 1==0
+    # assert 1==0
 
-    # assert torch.allclose(xz.grad, xz_ref.grad.to(dtype=itype), rtol=rtol * 2, atol=atol * 2)
-    # assert torch.allclose(delta.grad, delta_ref.grad.to(dtype=itype), rtol=rtol * 5, atol=atol * 10)
-    # assert torch.allclose(A.grad, A_ref.grad, rtol=rtolw, atol=atolw * 5)
-    # assert torch.allclose(B.grad, B_ref.grad, rtol=rtolw if not is_variable_B else rtol,
-    #                       atol=atolw if not is_variable_B else atol)
-    # assert torch.allclose(C.grad, C_ref.grad, rtol=rtolw if not is_variable_C else rtol,
-    #                       atol=atolw if not is_variable_C else atol)
-    # assert torch.allclose(D.grad, D_ref.grad, rtol=rtolw, atol=atolw)
-    # assert torch.allclose(delta_bias.grad, delta_bias_ref.grad, rtol=rtolw, atol=atolw)
+    assert torch.allclose(xz.grad, xz_ref.grad.to(dtype=itype), rtol=rtol * 2, atol=atol * 2)
+    assert torch.allclose(delta.grad, delta_ref.grad.to(dtype=itype), rtol=rtol * 5, atol=atol * 10)
+    assert torch.allclose(A.grad, A_ref.grad, rtol=rtolw, atol=atolw * 5)
+    assert torch.allclose(B.grad, B_ref.grad, rtol=rtolw if not is_variable_B else rtol,
+                          atol=atolw if not is_variable_B else atol)
+    assert torch.allclose(C.grad, C_ref.grad, rtol=rtolw if not is_variable_C else rtol,
+                          atol=atolw if not is_variable_C else atol)
+    assert torch.allclose(D.grad, D_ref.grad, rtol=rtolw, atol=atolw)
+    assert torch.allclose(delta_bias.grad, delta_bias_ref.grad, rtol=rtolw, atol=atolw)
 
 def compare_tensor(out, out_ref, rtol, atol, verbose=False):
     """

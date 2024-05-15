@@ -135,8 +135,14 @@ def selective_scan_ref(u, delta, A, B, C, D=None, z=None, delta_bias=None, delta
     if is_variable_C and C.dim() == 4:
         C = repeat(C, "B G N L -> B (G H) N L", H=dim // C.shape[1])
     last_state = None
+    inspect_tensor_properties(delta, "inside selective scan ref delta")
+    inspect_tensor_properties(B, "inside selective scan ref B")
+    inspect_tensor_properties(u, "inside selective scan ref u")
+    inspect_tensor_properties(deltaB_u, "inside selective scan ref deltaB_u")
+
     for i in range(u.shape[2]):
         x = deltaA[:, :, i] * x + deltaB_u[:, :, i]
+        inspect_tensor_properties(x, "inside selective scan ref loop x")
         if not is_variable_C:
             y = torch.einsum('bdn,dn->bd', x, C)
         else:
@@ -148,11 +154,15 @@ def selective_scan_ref(u, delta, A, B, C, D=None, z=None, delta_bias=None, delta
             last_state = x
         if y.is_complex():
             y = y.real * 2
+        inspect_tensor_properties(y, "inside selective scan ref loop y")
         ys.append(y)
     y = torch.stack(ys, dim=2) # (batch dim L)
+    inspect_tensor_properties(y, "inside selective scan ref y")
     out = y if D is None else y + u * rearrange(D, "d -> d 1")
+    inspect_tensor_properties(out, "inside selective scan ref out")
     if z is not None:
         out = out * F.silu(z)
+    inspect_tensor_properties(out, "inside selective scan ref out after z")
     out = out.to(dtype=dtype_in)
     return out if not return_last_state else (out, last_state)
 
@@ -194,6 +204,7 @@ class MambaInnerFn(torch.autograd.Function):
         print("conv1d_out.shape", conv1d_out.shape)
         print("x_dbl input contiguous",rearrange(conv1d_out, 'b d l -> (b l) d').is_contiguous())
         x_dbl = F.linear(rearrange(conv1d_out, 'b d l -> (b l) d'), x_proj_weight)  # (bl d)
+        inspect_tensor_properties(x_proj_weight, name="X PROJ WEIGHT")
         delta = rearrange(delta_proj_weight @ x_dbl[:, :delta_rank].t(), "d (b l) -> b d l", l = L)
         ctx.is_variable_B = B is None
         ctx.is_variable_C = C is None
@@ -225,6 +236,10 @@ class MambaInnerFn(torch.autograd.Function):
                 C = C.contiguous()
         if D is not None:
             D = D.contiguous()
+        inspect_tensor_properties(conv1d_out, name="CONV OUT")
+        inspect_tensor_properties(A, name="A")
+        inspect_tensor_properties(D, name="D")
+        inspect_tensor_properties(delta_bias, name="delta_bias")
         out, scan_intermediates, out_z = selective_scan_cuda.fwd(
             conv1d_out, delta, A, B, C, D, z, delta_bias, delta_softplus
         )
@@ -242,6 +257,7 @@ class MambaInnerFn(torch.autograd.Function):
         print("_"*40)
         print("fn::input", end=" ")
         print_memory_layout(temp)
+        inspect_tensor_properties(temp, "OUT PROJ OUTPUT")
         print("fn::weight", end=" ")
         print_memory_layout(out_proj_weight)
 
@@ -369,7 +385,12 @@ def mamba_inner_ref(
     # We're being very careful here about the layout, to avoid extra transposes.
     # We want delta to have d as the slowest moving dimension
     # and L as the fastest moving dimension, since those are what the ssm_scan kernel expects.
+    inspect_tensor_properties(x_proj_weight, "x_proj_weight in ref")
+
+    inspect_tensor_properties(x, "x in ref")
+
     x_dbl = F.linear(rearrange(x, 'b d l -> (b l) d'), x_proj_weight)  # (bl d)
+    inspect_tensor_properties(x_dbl, "x_dbl in ref")
     delta = delta_proj_weight @ x_dbl[:, :delta_rank].t()
     delta = rearrange(delta, "d (b l) -> b d l", l=L)
     if B is None:  # variable B
@@ -388,12 +409,14 @@ def mamba_inner_ref(
             C = rearrange(C, "(b l) dstate -> b dstate l", l=L).contiguous()
         else:
             C = rearrange(C, "(b l) (dstate two) -> b dstate (l two)", l=L, two=2).contiguous()
-    y = selective_scan_fn(x, delta, A, B, C, D, z=z, delta_bias=delta_bias, delta_softplus=True)
+    inspect_tensor_properties(B, "B in ref")
+    y = selective_scan_ref(x, delta, A, B, C, D, z=z, delta_bias=delta_bias, delta_softplus=True)
     temp = rearrange(y, "b d l -> b l d")
     # temp = temp.contiguous()
 
     print("fn::input", end=" ")
     print_memory_layout(temp)
+    inspect_tensor_properties(temp, "OUT PROJ OUT in ref")
     print("fn::weight", end=" ")
     print_memory_layout(out_proj_weight)    
     
@@ -456,3 +479,28 @@ def compare_tensor(out, out_ref, rtol=None, atol=None, verbose=False, name="outp
         assert torch.allclose(out, out_ref, rtol=rtol, atol=atol)
     else:
         print("passed test", torch.allclose(out, out_ref, rtol=rtol, atol=atol))
+
+def inspect_tensor_properties(tensor, name=None):
+    """
+    Inspect and print various properties of a given PyTorch tensor.
+    
+    Args:
+        tensor (torch.Tensor): The tensor to inspect.
+    """
+    if name is not None:
+        print(f"INSPECTING {name}")
+    print("Shape:", tensor.shape)
+    print("Data type:", tensor.dtype)
+    print("Device:", tensor.device)
+    print("Requires grad:", tensor.requires_grad)
+    print("Is contiguous:", tensor.is_contiguous())
+    print("Memory format:", end=" ")
+    print_memory_layout(tensor)
+    print("Contains NaN:", torch.isnan(tensor).any().item())
+    print("Contains Inf:", torch.isinf(tensor).any().item())
+    print("Sample values:", tensor.flatten()[:10])
+    print("Minimum value:", torch.min(tensor).item())
+    print("Maximum value:", torch.max(tensor).item())
+    print("Mean value:", torch.mean(tensor.float()).item())  # Use float() if necessary to avoid dtype issues
+    print("Standard deviation:", torch.std(tensor.float()).item())  # Adding standard deviation
+    print("~"*50)

@@ -69,7 +69,7 @@ l = 128  # sequence length
 device = "cuda"
 
 # # Create a tensor of shape (b, d, l)
-y = -30000 + 100000*torch.randn(b, d, l, device=device)
+y = 100 + 8000*torch.randn(b, d, l, device=device)
 # y = -30000 + 100000*torch.randn(b*l, d, device=device)
 
 # print("Original tensor shape:", y.shape)

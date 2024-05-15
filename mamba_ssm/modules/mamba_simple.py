@@ -10,7 +10,7 @@ from torch import Tensor
 
 from einops import rearrange, repeat
 
-from mamba_ssm.ops.selective_scan_interface import selective_scan_fn, mamba_inner_fn
+from mamba_ssm.ops.selective_scan_interface import selective_scan_fn, mamba_inner_fn, compare_tensor, inspect_tensor_properties
 
 try:
     from causal_conv1d import causal_conv1d_fn, causal_conv1d_update
@@ -179,7 +179,10 @@ class Mamba(nn.Module):
             # We're careful here about the layout, to avoid extra transposes.
             # We want dt to have d as the slowest moving dimension
             # and L as the fastest moving dimension, since those are what the ssm_scan kernel expects.
+            inspect_tensor_properties(x, "x")
+            inspect_tensor_properties(self.x_proj.weight, "self.x_proj.weight")
             x_dbl = self.x_proj(rearrange(x, "b d l -> (b l) d"))  # (bl d)
+            inspect_tensor_properties(x_dbl, "x_dbl")
             dt, B, C = torch.split(x_dbl, [self.dt_rank, self.d_state, self.d_state], dim=-1)
             dt = self.dt_proj.weight @ dt.t()
             dt = rearrange(dt, "d (b l) -> b d l", l=seqlen)
@@ -202,7 +205,28 @@ class Mamba(nn.Module):
                 y, last_state = y
                 ssm_state.copy_(last_state)
             y = rearrange(y, "b d l -> b l d")
+
+            inspect_tensor_properties(y)
+
             out = self.out_proj(y)
+
+            # Extract weights and bias from the GPU layer
+            weights = self.out_proj.weight.detach()
+            bias = self.out_proj.bias.detach() if self.out_proj.bias is not None else None
+
+            # Perform operation on CPU
+            y_cpu = y.to('cpu')
+            weights_cpu = weights.to('cpu')
+            bias_cpu = bias.to('cpu') if bias is not None else None
+            out_cpu = F.linear(y_cpu, weights_cpu, bias_cpu)
+
+            # Move the CPU result back to GPU for comparison
+            out_cpu_gpu = out_cpu.to('cuda')
+
+            # Compare CPU result on GPU and original GPU result
+            compare_tensor(out, out_cpu_gpu, name='out proj', verbose=True)
+
+
         return out
 
     def step(self, hidden_states, conv_state, ssm_state):
