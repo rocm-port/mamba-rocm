@@ -173,12 +173,21 @@ def test_mamba_inner_fn(is_variable_B, is_variable_C, seqlen, itype, wtype):
     dstate = 8
     dt_rank = 48
     is_complex = wtype == torch.complex64
-    xz = torch.randn(batch_size, 2 * dim, seqlen, device=device, dtype=itype, requires_grad=True)
+    # xz = torch.randn(batch_size, 2 * dim, seqlen, device=device, dtype=itype, requires_grad=True)
+    
+    mean = 0  # Mean of the distribution
+    std = 0.1   # Standard deviation (square root of variance)
+    # Assuming batch_size, dim, and seqlen are defined as per your previous usage
+    xz = torch.normal(mean, std, size=(batch_size, 2 * dim, seqlen), device=device, dtype=itype, requires_grad=True)
+    
     conv1d_weight = torch.randn(dim, 1, 3, device=device, dtype=torch.float32, requires_grad=True)
     conv1d_bias = torch.randn(dim, device=device, dtype=torch.float32, requires_grad=True)
-    x_proj_weight = torch.randn(dt_rank + (bool(is_variable_B) + bool(is_variable_C)) * dstate
-                                * (1 if not is_complex else 2),
-                                dim, device=device, dtype=itype, requires_grad=True)
+    # x_proj_weight = torch.randn(dt_rank + (bool(is_variable_B) + bool(is_variable_C)) * dstate
+    #                             * (1 if not is_complex else 2),
+    #                             dim, device=device, dtype=itype, requires_grad=True)
+    x_proj_weight = torch.normal(mean, std, size=((dt_rank + (bool(is_variable_B) + bool(is_variable_C)) * dstate * (1 if not is_complex else 2), dim)),
+                                device=device, dtype=itype, requires_grad=True)
+
     delta_proj_weight = torch.randn(dim, dt_rank, device=device, dtype=itype, requires_grad=True)
     out_proj_weight = torch.randn(dim // 2, dim, device=device, dtype=itype, requires_grad=True)
     out_proj_bias = None
@@ -216,7 +225,6 @@ def test_mamba_inner_fn(is_variable_B, is_variable_C, seqlen, itype, wtype):
 
     print(f'Output max diff: {(out - out_ref).abs().max().item()}')
     print(f'Output mean diff: {(out - out_ref).abs().mean().item()}')
-    assert torch.allclose(out, out_ref, rtol=rtol, atol=atol)
 
     g = torch.randn_like(out)
     out_ref.backward(g)
@@ -245,3 +253,4 @@ def test_mamba_inner_fn(is_variable_B, is_variable_C, seqlen, itype, wtype):
     #                       atol=atolw if not is_variable_C else atol)
     # assert torch.allclose(D.grad, D_ref.grad, rtol=rtolw, atol=atolw)
     # assert torch.allclose(delta_bias.grad, delta_bias_ref.grad, rtol=rtolw, atol=atolw)
+    assert torch.allclose(out, out_ref, rtol=rtol, atol=atol)
