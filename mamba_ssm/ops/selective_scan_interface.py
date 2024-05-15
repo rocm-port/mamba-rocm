@@ -170,7 +170,6 @@ class MambaInnerFn(torch.autograd.Function):
         """
         assert causal_conv1d_cuda is not None, "causal_conv1d_cuda is not available. Please install causal-conv1d."
         assert checkpoint_lvl in [0, 1]
-        print('Hello')
         L = xz.shape[-1]
         delta_rank = delta_proj_weight.shape[1]
         d_state = A.shape[-1] * (1 if not A.is_complex() else 2)
@@ -238,14 +237,38 @@ class MambaInnerFn(torch.autograd.Function):
                               delta_proj_weight, out_proj_weight, conv1d_out, delta,
                               A, B, C, D, delta_bias, scan_intermediates, out)
         temp = rearrange(out_z, "b d l -> b l d")
-        torch.save(temp, "../culprit_tensor.pth")
+        # torch.save(temp, "../culprit_tensor.pth")
+        # temp = temp.contiguous() # adeem added line
+        print("_"*40)
+        print("fn::input", end=" ")
+        print_memory_layout(temp)
+        print("fn::weight", end=" ")
+        print_memory_layout(out_proj_weight)
 
-        # temp = temp.contiguous()
-        print("last layer input  Is contiguous:", temp.is_contiguous())
-        # print("  Strides:", temp.stride())
-        # print("  Memory layout:", temp.layout)
+        result = F.linear(temp, out_proj_weight, out_proj_bias)
 
-        return F.linear(temp, out_proj_weight, out_proj_bias)
+        cpu_compare = True
+        if cpu_compare:
+            # Clone the tensors to the CPU
+            temp_cpu = temp.clone().to('cpu')
+            out_proj_weight_cpu = out_proj_weight.clone().to('cpu')
+            out_proj_bias_cpu = out_proj_bias.clone().to('cpu') if out_proj_bias is not None else None
+
+            # Perform the linear operation on the CPU
+            result_cpu = F.linear(temp_cpu, out_proj_weight_cpu, out_proj_bias_cpu)
+
+            # Move the result back to the GPU
+            result_cpu_gpu = result_cpu.to('cuda')
+
+            # Check if the result from the CPU, moved back to GPU, is close to the original GPU result
+            # close =  torch.allclose(result, result_cpu_gpu)
+            # print("Are the results close?", close)
+            compare_tensor(result, result_cpu_gpu, verbose=True, name="output last linear", raise_err=False)
+
+        print("_"*40)
+
+
+        return result
 
     @staticmethod
     @custom_bwd
@@ -366,11 +389,70 @@ def mamba_inner_ref(
         else:
             C = rearrange(C, "(b l) (dstate two) -> b dstate (l two)", l=L, two=2).contiguous()
     y = selective_scan_fn(x, delta, A, B, C, D, z=z, delta_bias=delta_bias, delta_softplus=True)
-    print("ref:: before rarrange", y.is_contiguous())
     temp = rearrange(y, "b d l -> b l d")
     # temp = temp.contiguous()
-    print("ref::last layer input  Is contiguous:", temp.is_contiguous())
-    # print("  Strides:", temp.stride())
-    # print("  Memory layout:", temp.layout)
 
-    return F.linear(temp, out_proj_weight, out_proj_bias)
+    print("fn::input", end=" ")
+    print_memory_layout(temp)
+    print("fn::weight", end=" ")
+    print_memory_layout(out_proj_weight)    
+    
+    result = F.linear(temp, out_proj_weight, out_proj_bias)
+    cpu_compare = True
+    if cpu_compare:
+        # Clone the tensors to the CPU
+        temp_cpu = temp.clone().to('cpu')
+        out_proj_weight_cpu = out_proj_weight.clone().to('cpu')
+        out_proj_bias_cpu = out_proj_bias.clone().to('cpu') if out_proj_bias is not None else None
+
+        # Perform the linear operation on the CPU
+        result_cpu = F.linear(temp_cpu, out_proj_weight_cpu, out_proj_bias_cpu)
+
+        # Move the result back to the GPU
+        result_cpu_gpu = result_cpu.to('cuda')
+
+        # Check if the result from the CPU, moved back to GPU, is close to the original GPU result
+        # close =  torch.allclose(result, result_cpu_gpu)
+        # print("Are the results close?", close)
+        compare_tensor(result, result_cpu_gpu, verbose=True, name="output last linear", raise_err=False)
+
+    print("-"*10)
+    return result
+
+
+def print_memory_layout(tensor):
+    strides = tensor.stride()
+    dimensions = list(range(tensor.dim()))
+    # Sort dimensions based on strides in descending order (largest stride first)
+    sorted_dims = sorted(dimensions, key=lambda x: strides[x], reverse=True)
+    layout = "->".join(f"Dim {dim} (Stride {strides[dim]})" for dim in sorted_dims)
+    print("Memory layout order:", layout)
+
+# # Example usage
+# tensor = torch.randn(2, 3, 4, device="cuda")  # Create a random 3D tensor
+# print_memory_layout(tensor)
+
+def compare_tensor(out, out_ref, rtol=None, atol=None, verbose=False, name="output", raise_err=True):
+    """
+    Compare two torch tensors and assert if they are equal within a tolerance.
+
+    Args:
+        out (torch.Tensor): The output tensor to be compared.
+        out_ref (torch.Tensor): The reference output tensor.
+        rtol (float, optional): The relative tolerance. Defaults to 1e-5.
+        atol (float, optional): The absolute tolerance. Defaults to 1e-8.
+        verbose (bool, optional): Whether to print verbose output. Defaults to False.
+    """
+    if verbose:
+        print("out shape", out.shape, out_ref.shape)
+    if rtol is None and atol is None:
+        rtol, atol = (6e-4, 2e-3)
+    assert(out.shape == out_ref.shape)
+
+    if verbose:
+        print(f'{name} max diff: {(out - out_ref).abs().max().item()}')
+        print(f'{name} mean diff: {(out - out_ref).abs().mean().item()}')
+    if raise_err:
+        assert torch.allclose(out, out_ref, rtol=rtol, atol=atol)
+    else:
+        print("passed test", torch.allclose(out, out_ref, rtol=rtol, atol=atol))

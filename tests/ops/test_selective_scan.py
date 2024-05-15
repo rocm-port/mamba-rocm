@@ -17,8 +17,7 @@ from mamba_ssm.ops.selective_scan_interface import mamba_inner_fn, mamba_inner_r
 # @pytest.mark.parametrize('itype', [torch.float32, torch.float16, torch.bfloat16])
 @pytest.mark.parametrize('itype', [torch.float32])
 # @pytest.mark.parametrize('seqlen', [8, 16, 32, 64, 128, 256, 372, 512, 784, 1024, 1134, 2048, 4096])
-# @pytest.mark.parametrize('seqlen', [128, 256, 512, 1024, 2048, 4096])
-@pytest.mark.parametrize('seqlen', [128])
+@pytest.mark.parametrize('seqlen', [128, 256, 512, 1024, 2048, 4096])
 # @pytest.mark.parametrize('seqlen', [128])
 # @pytest.mark.parametrize("return_last_state", [False, True])
 @pytest.mark.parametrize("return_last_state", [True])
@@ -30,8 +29,7 @@ from mamba_ssm.ops.selective_scan_interface import mamba_inner_fn, mamba_inner_r
 @pytest.mark.parametrize('has_z', [True])
 # @pytest.mark.parametrize('has_D', [False, True])
 @pytest.mark.parametrize('has_D', [True])
-@pytest.mark.parametrize("varBC_groups", [1])
-# @pytest.mark.parametrize("varBC_groups", [1, 2])
+@pytest.mark.parametrize("varBC_groups", [1, 2])
 # @pytest.mark.parametrize("varBC_groups", [1])
 # @pytest.mark.parametrize("is_variable_C", [False, True])
 @pytest.mark.parametrize("is_variable_C", [True])
@@ -52,7 +50,7 @@ def test_selective_scan(is_variable_B, is_variable_C, varBC_groups, has_D, has_z
     # set seed
     torch.random.manual_seed(0)
     batch_size = 2
-    dim = 768
+    dim = 4
     dstate = 8
     is_complex = wtype == torch.complex64
     A = (-0.5 * torch.rand(dim, dstate, device=device, dtype=wtype)).requires_grad_()
@@ -237,7 +235,6 @@ def test_mamba_inner_fn(is_variable_B, is_variable_C, seqlen, itype, wtype):
     # print(delta_rank, delta_rank_ref)
     # assert delta_rank == delta_rank_ref
 
-    print("out.dtype", out.dtype, out_ref.dtype)
     compare_tensor(out, out_ref, rtol, atol, verbose=True)
     # print("out shape", out.shape, out_ref.shape)
     # assert(out.shape == out_ref.shape)
