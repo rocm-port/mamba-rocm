@@ -244,13 +244,16 @@ def test_mamba_inner_fn(is_variable_B, is_variable_C, seqlen, itype, wtype):
     print(f'dconv1d_weight max diff: {(conv1d_weight.grad - conv1d_weight_ref.grad).abs().max().item()}')
     print(f'dconv1d_bias max diff: {(conv1d_bias.grad - conv1d_bias_ref.grad).abs().max().item()}')
 
-    # assert torch.allclose(xz.grad, xz_ref.grad.to(dtype=itype), rtol=rtol * 2, atol=atol * 2)
+    assert torch.allclose(xz.grad, xz_ref.grad.to(dtype=itype), rtol=rtol * 2, atol=atol * 2)
+    # there is no delta in mamba inner fn
     # assert torch.allclose(delta.grad, delta_ref.grad.to(dtype=itype), rtol=rtol * 5, atol=atol * 10)
-    # assert torch.allclose(A.grad, A_ref.grad, rtol=rtolw, atol=atolw * 5)
-    # assert torch.allclose(B.grad, B_ref.grad, rtol=rtolw if not is_variable_B else rtol,
-    #                       atol=atolw if not is_variable_B else atol)
-    # assert torch.allclose(C.grad, C_ref.grad, rtol=rtolw if not is_variable_C else rtol,
-    #                       atol=atolw if not is_variable_C else atol)
-    # assert torch.allclose(D.grad, D_ref.grad, rtol=rtolw, atol=atolw)
-    # assert torch.allclose(delta_bias.grad, delta_bias_ref.grad, rtol=rtolw, atol=atolw)
+    assert torch.allclose(A.grad, A_ref.grad, rtol=rtolw, atol=atolw * 5)
+    if B is not None:
+        assert torch.allclose(B.grad, B_ref.grad, rtol=rtolw if not is_variable_B else rtol,
+                          atol=atolw if not is_variable_B else atol)
+    if C is not None:
+        assert torch.allclose(C.grad, C_ref.grad, rtol=rtolw if not is_variable_C else rtol,
+                          atol=atolw if not is_variable_C else atol)
+    assert torch.allclose(D.grad, D_ref.grad, rtol=rtolw, atol=atolw)
+    assert torch.allclose(delta_bias.grad, delta_bias_ref.grad, rtol=rtolw, atol=atolw)
     assert torch.allclose(out, out_ref, rtol=rtol, atol=atol)
