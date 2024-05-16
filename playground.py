@@ -65,11 +65,11 @@ def inspect_tensor_properties(tensor):
 b = 2  # batch size
 d = 768  # feature dimension
 l = 128  # sequence length
+# torch.random.manual_seed(0)
 
 device = "cuda"
-
 # # Create a tensor of shape (b, d, l)
-y = 100 + 8000*torch.randn(b, d, l, device=device)
+# y = 100 + 8000*torch.randn(b, d, l, device=device)
 # y = -30000 + 100000*torch.randn(b*l, d, device=device)
 
 # print("Original tensor shape:", y.shape)
@@ -78,34 +78,35 @@ y = 100 + 8000*torch.randn(b, d, l, device=device)
 # assert y.is_contiguous(), "Tensor is not contiguous"
 
 # Rearrange the tensor to shape (b, l, d) and make it non-contiguous
-y_rearranged = rearrange(y, 'b d l -> b l d')
+# y_rearranged = rearrange(y, 'b d l -> b l d')
 # y_rearranged = y
-# y_rearranged = torch.load("../culprit_tensor.pth")
+y_rearranged_fn = torch.load("../culprit_tensor_fn.pth")
 
-print("_"*50)
-inspect_tensor_properties(y_rearranged)
-print("_"*50)
+# print("_"*50)
+# inspect_tensor_properties(y_rearranged_fn)
+# print("_"*50)
 
-# torch.save(y_rearranged, "../temp.pth")
-# y_rearranged = torch.load("../temp.pth")
-print("Rearranged tensor layout:", end=" ")
-print_memory_layout(y_rearranged)
+# # torch.save(y_rearranged, "../temp.pth")
+# # y_rearranged = torch.load("../temp.pth")
+# print("Rearranged tensor layout:", end=" ")
+# print_memory_layout(y_rearranged_fn)
 
 # print(y_rearranged.requires_grad)
 # y_rearranged = y_rearranged.requires_grad_()
 # print(y_rearranged.requires_grad)
 
-temp_cpu = y_rearranged.clone().to('cpu')
+# temp_cpu = y_rearranged.clone().to('cpu')
+y_rearranged_ref = torch.load("../culprit_tensor_ref.pth")
 
 # Define linear layer parameters
-out_proj_weight = torch.randn(d // 2, d, device=device, requires_grad=True)
-# out_proj_weight = torch.load("../out_proj_weight.pth")
-print(out_proj_weight.requires_grad)
+# out_proj_weight = torch.randn(d // 2, d, device=device, requires_grad=True)
+out_proj_weight = torch.load("../out_proj_weight.pth")
+# print(out_proj_weight.requires_grad)
 
-out_proj_weight_cpu = out_proj_weight.clone().to('cpu')
+# out_proj_weight_cpu = out_proj_weight.clone().to('cpu')
 
 # Apply the linear transformation to the non-contiguous tensor
-result = F.linear(y_rearranged, out_proj_weight)
+result_fn = F.linear(y_rearranged_fn, out_proj_weight)
 
 
 # # Make a contiguous copy of the rearranged tensor
@@ -120,12 +121,16 @@ result = F.linear(y_rearranged, out_proj_weight)
 
 
 # Perform the linear operation on the CPU
-result_cpu = F.linear(temp_cpu, out_proj_weight_cpu)
+# result_cpu = F.linear(temp_cpu, out_proj_weight_cpu)
+result_ref = F.linear(y_rearranged_ref, out_proj_weight)
 
-# Move the result back to the GPU
-result_cpu_gpu = result_cpu.to('cuda')
+
+
+# # Move the result back to the GPU
+# result_cpu_gpu = result_cpu.to('cuda')
 
 # Compare the results
-compare_tensor(result, result_cpu_gpu, verbose=True, raise_err=False)
+compare_tensor(result_fn, result_ref, verbose=True, raise_err=False)
 
 
+compare_tensor(y_rearranged_fn, y_rearranged_ref, verbose=True, raise_err=False)

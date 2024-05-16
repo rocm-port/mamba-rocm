@@ -9,7 +9,7 @@ import pytest
 from einops import rearrange
 
 from mamba_ssm.ops.selective_scan_interface import selective_scan_fn, selective_scan_ref
-from mamba_ssm.ops.selective_scan_interface import mamba_inner_fn, mamba_inner_ref
+from mamba_ssm.ops.selective_scan_interface import mamba_inner_fn, mamba_inner_ref, compare_tensor
 
 
 # @pytest.mark.parametrize('wtype', [torch.float32, torch.complex64])
@@ -60,16 +60,17 @@ def test_selective_scan(is_variable_B, is_variable_C, varBC_groups, has_D, has_z
         B_shape = (batch_size, dstate, seqlen if not is_complex else seqlen * 2)
     else:
         B_shape = (batch_size, varBC_groups, dstate, seqlen if not is_complex else seqlen * 2)
-    B = torch.randn(*B_shape, device=device, dtype=wtype if not is_variable_B else itype,
-                    requires_grad=True)
+    std_dev = 35.0
+    B = (std_dev*torch.randn(*B_shape, device=device, dtype=wtype if not is_variable_B else itype)).requires_grad_()
+                    # requires_grad=True)
     if not is_variable_C:
         C_shape = (dim, dstate)
     elif varBC_groups == 1:
         C_shape = (batch_size, dstate, seqlen if not is_complex else seqlen * 2)
     else:
         C_shape = (batch_size, varBC_groups, dstate, seqlen if not is_complex else seqlen * 2)
-    C = torch.randn(*C_shape, device=device, dtype=wtype if not is_variable_C else itype,
-                    requires_grad=True)
+    C = (std_dev*torch.randn(*C_shape, device=device, dtype=wtype if not is_variable_C else itype)).requires_grad_()
+                    # requires_grad=True)
     if has_D:
         D = torch.randn(dim, device=device, dtype=torch.float32, requires_grad=True)
     else:
@@ -82,7 +83,7 @@ def test_selective_scan(is_variable_B, is_variable_C, varBC_groups, has_D, has_z
         delta_bias = (0.5 * torch.rand(dim, device=device, dtype=torch.float32)).requires_grad_()
     else:
         delta_bias = None
-    u = torch.randn(batch_size, dim, seqlen, device=device, dtype=itype, requires_grad=True)
+    u = (std_dev*torch.randn(batch_size, dim, seqlen, device=device, dtype=itype)).requires_grad_()
     delta = (0.5 * torch.rand(batch_size, dim, seqlen, device=device, dtype=itype)).requires_grad_()
     A_ref = A.detach().clone().requires_grad_()
     B_ref = B.detach().clone().requires_grad_()
@@ -205,10 +206,10 @@ def test_mamba_inner_fn(is_variable_B, is_variable_C, seqlen, itype, wtype):
     C_ref = C.detach().clone().requires_grad_() if C is not None else None
     D_ref = D.detach().clone().requires_grad_()
     delta_bias_ref = delta_bias.detach().clone().requires_grad_() if delta_bias is not None else None
-    out = mamba_inner_fn(xz, conv1d_weight, conv1d_bias, x_proj_weight, delta_proj_weight,
+    out, out_z, x_dbl = mamba_inner_fn(xz, conv1d_weight, conv1d_bias, x_proj_weight, delta_proj_weight,
                          out_proj_weight, out_proj_bias,
                          A, B, C, D, delta_bias=delta_bias, delta_softplus=True)
-    out_ref = mamba_inner_ref(xz_ref, conv1d_weight_ref, conv1d_bias_ref, x_proj_weight_ref,
+    out_ref, out_z_ref, x_dbl_ref = mamba_inner_ref(xz_ref, conv1d_weight_ref, conv1d_bias_ref, x_proj_weight_ref,
                               delta_proj_weight_ref, out_proj_weight_ref, out_proj_bias_ref,
                               A_ref, B_ref, C_ref, D_ref,
                               delta_bias=delta_bias_ref, delta_softplus=True)
@@ -234,8 +235,10 @@ def test_mamba_inner_fn(is_variable_B, is_variable_C, seqlen, itype, wtype):
     # assert torch.allclose(x_dbl, x_dbl_ref, rtol=rtol, atol=atol)
     # print(delta_rank, delta_rank_ref)
     # assert delta_rank == delta_rank_ref
+    compare_tensor(x_dbl, x_dbl_ref, name="x_dbl", verbose=True, raise_err=False)
+    compare_tensor(out_z, out_z_ref, rtol, atol, verbose=True, name="out_z")
 
-    compare_tensor(out, out_ref, rtol, atol, verbose=True)
+    compare_tensor(out, out_ref, rtol, atol, verbose=True, name="out")
     # print("out shape", out.shape, out_ref.shape)
     # assert(out.shape == out_ref.shape)
     # print(f'Output max diff: {(out - out_ref).abs().max().item()}')
@@ -271,21 +274,5 @@ def test_mamba_inner_fn(is_variable_B, is_variable_C, seqlen, itype, wtype):
     assert torch.allclose(D.grad, D_ref.grad, rtol=rtolw, atol=atolw)
     assert torch.allclose(delta_bias.grad, delta_bias_ref.grad, rtol=rtolw, atol=atolw)
 
-def compare_tensor(out, out_ref, rtol, atol, verbose=False):
-    """
-    Compare two torch tensors and assert if they are equal within a tolerance.
 
-    Args:
-        out (torch.Tensor): The output tensor to be compared.
-        out_ref (torch.Tensor): The reference output tensor.
-        rtol (float, optional): The relative tolerance. Defaults to 1e-5.
-        atol (float, optional): The absolute tolerance. Defaults to 1e-8.
-        verbose (bool, optional): Whether to print verbose output. Defaults to False.
-    """
-    if verbose:
-        print("out shape", out.shape, out_ref.shape)
-    assert(out.shape == out_ref.shape)
-    if verbose:
-        print(f'Output max diff: {(out - out_ref).abs().max().item()}')
-        print(f'Output mean diff: {(out - out_ref).abs().mean().item()}')
-    assert torch.allclose(out, out_ref, rtol=rtol, atol=atol)
+

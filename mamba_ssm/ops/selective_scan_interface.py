@@ -204,6 +204,7 @@ class MambaInnerFn(torch.autograd.Function):
         # print("conv1d_out.shape", conv1d_out.shape)
         # print("x_dbl input contiguous",rearrange(conv1d_out, 'b d l -> (b l) d').is_contiguous())
         x_dbl = F.linear(rearrange(conv1d_out, 'b d l -> (b l) d'), x_proj_weight)  # (bl d)
+        x_dbl_return = x_dbl.clone()
         inspect_tensor_properties(x_proj_weight, name="X PROJ WEIGHT")
         delta = rearrange(delta_proj_weight @ x_dbl[:, :delta_rank].t(), "d (b l) -> b d l", l = L)
         ctx.is_variable_B = B is None
@@ -251,8 +252,9 @@ class MambaInnerFn(torch.autograd.Function):
         ctx.save_for_backward(xz, conv1d_weight, conv1d_bias, x_dbl, x_proj_weight,
                               delta_proj_weight, out_proj_weight, conv1d_out, delta,
                               A, B, C, D, delta_bias, scan_intermediates, out)
+        out_z_return = out_z.clone()
         temp = rearrange(out_z, "b d l -> b l d")
-        # torch.save(temp, "../culprit_tensor.pth")
+        torch.save(temp, "../culprit_tensor_fn.pth")
         # temp = temp.contiguous() # adeem added line
         inspect_tensor_properties(temp, "OUT PROJ OUTPUT")
         result = F.linear(temp, out_proj_weight, out_proj_bias)
@@ -278,7 +280,7 @@ class MambaInnerFn(torch.autograd.Function):
         print("_"*40)
 
 
-        return result
+        return result, out_z_return, x_dbl_return
 
     @staticmethod
     @custom_bwd
@@ -384,6 +386,7 @@ def mamba_inner_ref(
     inspect_tensor_properties(x, "x in ref")
 
     x_dbl = F.linear(rearrange(x, 'b d l -> (b l) d'), x_proj_weight)  # (bl d)
+    x_dbl_return = x_dbl.clone()
     inspect_tensor_properties(x_dbl, "x_dbl in ref")
     delta = delta_proj_weight @ x_dbl[:, :delta_rank].t()
     delta = rearrange(delta, "d (b l) -> b d l", l=L)
@@ -405,7 +408,9 @@ def mamba_inner_ref(
             C = rearrange(C, "(b l) (dstate two) -> b dstate (l two)", l=L, two=2).contiguous()
     inspect_tensor_properties(B, "B in ref")
     y = selective_scan_ref(x, delta, A, B, C, D, z=z, delta_bias=delta_bias, delta_softplus=True)
+    out_z_return = y.clone()
     temp = rearrange(y, "b d l -> b l d")
+    torch.save(temp, "../culprit_tensor_ref.pth")
     # temp = temp.contiguous()
 
     inspect_tensor_properties(temp, "OUT PROJ OUT in ref")
@@ -430,7 +435,7 @@ def mamba_inner_ref(
         compare_tensor(result, result_cpu_gpu, verbose=True, name="output last linear", raise_err=False)
 
     print("-"*10)
-    return result
+    return result, out_z_return, x_dbl_return
 
 
 def print_memory_layout(tensor):
@@ -456,8 +461,9 @@ def compare_tensor(out, out_ref, rtol=None, atol=None, verbose=False, name="outp
         atol (float, optional): The absolute tolerance. Defaults to 1e-8.
         verbose (bool, optional): Whether to print verbose output. Defaults to False.
     """
+    print("COMPARING TESNORS")
     if verbose:
-        print("out shape", out.shape, out_ref.shape)
+        print(f"{name} shape", out.shape, out_ref.shape)
     if rtol is None and atol is None:
         rtol, atol = (6e-4, 2e-3)
     assert(out.shape == out_ref.shape)
