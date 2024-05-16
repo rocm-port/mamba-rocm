@@ -142,7 +142,7 @@ def selective_scan_ref(u, delta, A, B, C, D=None, z=None, delta_bias=None, delta
 
     for i in range(u.shape[2]):
         x = deltaA[:, :, i] * x + deltaB_u[:, :, i]
-        inspect_tensor_properties(x, "inside selective scan ref loop x")
+        # inspect_tensor_properties(x, "inside selective scan ref loop x")
         if not is_variable_C:
             y = torch.einsum('bdn,dn->bd', x, C)
         else:
@@ -154,7 +154,7 @@ def selective_scan_ref(u, delta, A, B, C, D=None, z=None, delta_bias=None, delta
             last_state = x
         if y.is_complex():
             y = y.real * 2
-        inspect_tensor_properties(y, "inside selective scan ref loop y")
+        # inspect_tensor_properties(y, "inside selective scan ref loop y")
         ys.append(y)
     y = torch.stack(ys, dim=2) # (batch dim L)
     inspect_tensor_properties(y, "inside selective scan ref y")
@@ -200,9 +200,9 @@ class MambaInnerFn(torch.autograd.Function):
         # We're being very careful here about the layout, to avoid extra transposes.
         # We want delta to have d as the slowest moving dimension
         # and L as the fastest moving dimension, since those are what the ssm_scan kernel expects.
-        print("x_proj_weight.shape", x_proj_weight.shape)
-        print("conv1d_out.shape", conv1d_out.shape)
-        print("x_dbl input contiguous",rearrange(conv1d_out, 'b d l -> (b l) d').is_contiguous())
+        # print("x_proj_weight.shape", x_proj_weight.shape)
+        # print("conv1d_out.shape", conv1d_out.shape)
+        # print("x_dbl input contiguous",rearrange(conv1d_out, 'b d l -> (b l) d').is_contiguous())
         x_dbl = F.linear(rearrange(conv1d_out, 'b d l -> (b l) d'), x_proj_weight)  # (bl d)
         inspect_tensor_properties(x_proj_weight, name="X PROJ WEIGHT")
         delta = rearrange(delta_proj_weight @ x_dbl[:, :delta_rank].t(), "d (b l) -> b d l", l = L)
@@ -254,16 +254,10 @@ class MambaInnerFn(torch.autograd.Function):
         temp = rearrange(out_z, "b d l -> b l d")
         # torch.save(temp, "../culprit_tensor.pth")
         # temp = temp.contiguous() # adeem added line
-        print("_"*40)
-        print("fn::input", end=" ")
-        print_memory_layout(temp)
         inspect_tensor_properties(temp, "OUT PROJ OUTPUT")
-        print("fn::weight", end=" ")
-        print_memory_layout(out_proj_weight)
-
         result = F.linear(temp, out_proj_weight, out_proj_bias)
 
-        cpu_compare = True
+        cpu_compare = False
         if cpu_compare:
             # Clone the tensors to the CPU
             temp_cpu = temp.clone().to('cpu')
@@ -414,14 +408,10 @@ def mamba_inner_ref(
     temp = rearrange(y, "b d l -> b l d")
     # temp = temp.contiguous()
 
-    print("fn::input", end=" ")
-    print_memory_layout(temp)
     inspect_tensor_properties(temp, "OUT PROJ OUT in ref")
-    print("fn::weight", end=" ")
-    print_memory_layout(out_proj_weight)    
     
     result = F.linear(temp, out_proj_weight, out_proj_bias)
-    cpu_compare = True
+    cpu_compare = False
     if cpu_compare:
         # Clone the tensors to the CPU
         temp_cpu = temp.clone().to('cpu')

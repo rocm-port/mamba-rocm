@@ -173,10 +173,10 @@ def test_mamba_inner_fn(is_variable_B, is_variable_C, seqlen, itype, wtype):
     dstate = 8
     dt_rank = 48
     is_complex = wtype == torch.complex64
-    xz = 0.1*torch.randn(batch_size, 2 * dim, seqlen, device=device, dtype=itype, requires_grad=True)
+    xz = torch.randn(batch_size, 2 * dim, seqlen, device=device, dtype=itype, requires_grad=True)
     conv1d_weight = torch.randn(dim, 1, 3, device=device, dtype=torch.float32, requires_grad=True)
     conv1d_bias = torch.randn(dim, device=device, dtype=torch.float32, requires_grad=True)
-    x_proj_weight = 0.1*torch.randn(dt_rank + (bool(is_variable_B) + bool(is_variable_C)) * dstate
+    x_proj_weight = torch.randn(dt_rank + (bool(is_variable_B) + bool(is_variable_C)) * dstate
                                 * (1 if not is_complex else 2),
                                 dim, device=device, dtype=itype, requires_grad=True)
     delta_proj_weight = torch.randn(dim, dt_rank, device=device, dtype=itype, requires_grad=True)
