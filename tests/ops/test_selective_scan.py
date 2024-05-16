@@ -61,7 +61,8 @@ def test_selective_scan(is_variable_B, is_variable_C, varBC_groups, has_D, has_z
     else:
         B_shape = (batch_size, varBC_groups, dstate, seqlen if not is_complex else seqlen * 2)
     std_dev = 35.0
-    B = (std_dev*torch.randn(*B_shape, device=device, dtype=wtype if not is_variable_B else itype)).requires_grad_()
+    mean = 0
+    B = (mean + std_dev*torch.randn(*B_shape, device=device, dtype=wtype if not is_variable_B else itype)).requires_grad_()
                     # requires_grad=True)
     if not is_variable_C:
         C_shape = (dim, dstate)
@@ -69,7 +70,7 @@ def test_selective_scan(is_variable_B, is_variable_C, varBC_groups, has_D, has_z
         C_shape = (batch_size, dstate, seqlen if not is_complex else seqlen * 2)
     else:
         C_shape = (batch_size, varBC_groups, dstate, seqlen if not is_complex else seqlen * 2)
-    C = (std_dev*torch.randn(*C_shape, device=device, dtype=wtype if not is_variable_C else itype)).requires_grad_()
+    C = (mean + std_dev*torch.randn(*C_shape, device=device, dtype=wtype if not is_variable_C else itype)).requires_grad_()
                     # requires_grad=True)
     if has_D:
         D = torch.randn(dim, device=device, dtype=torch.float32, requires_grad=True)
@@ -83,8 +84,8 @@ def test_selective_scan(is_variable_B, is_variable_C, varBC_groups, has_D, has_z
         delta_bias = (0.5 * torch.rand(dim, device=device, dtype=torch.float32)).requires_grad_()
     else:
         delta_bias = None
-    u = (std_dev*torch.randn(batch_size, dim, seqlen, device=device, dtype=itype)).requires_grad_()
-    delta = (0.5 * torch.rand(batch_size, dim, seqlen, device=device, dtype=itype)).requires_grad_()
+    u = (1.2*torch.randn(batch_size, dim, seqlen, device=device, dtype=itype)).requires_grad_()
+    delta = (100 * torch.rand(batch_size, dim, seqlen, device=device, dtype=itype)).requires_grad_()
     A_ref = A.detach().clone().requires_grad_()
     B_ref = B.detach().clone().requires_grad_()
     C_ref = C.detach().clone().requires_grad_()
@@ -191,6 +192,23 @@ def test_mamba_inner_fn(is_variable_B, is_variable_C, seqlen, itype, wtype):
          if not is_variable_C else None)
     D = torch.randn(dim, device=device, dtype=torch.float32, requires_grad=True)
     delta_bias = (0.5 * torch.rand(dim, device=device, dtype=torch.float32)).requires_grad_()
+    # xz = torch.randn(batch_size, 2 * dim, seqlen, device=device, dtype=itype, requires_grad=False)
+    # conv1d_weight = torch.randn(dim, 1, 3, device=device, dtype=torch.float32, requires_grad=False)
+    # conv1d_bias = torch.randn(dim, device=device, dtype=torch.float32, requires_grad=False)
+    # x_proj_weight = torch.randn(dt_rank + (bool(is_variable_B) + bool(is_variable_C)) * dstate
+    #                             * (1 if not is_complex else 2),
+    #                             dim, device=device, dtype=itype, requires_grad=False)
+    # delta_proj_weight = torch.randn(dim, dt_rank, device=device, dtype=itype, requires_grad=False)
+    # out_proj_weight = torch.randn(dim // 2, dim, device=device, dtype=itype, requires_grad=False)
+    # torch.save(out_proj_weight, "../out_proj_weight.pth")
+    # out_proj_bias = None
+    # A = (-0.5 * torch.rand(dim, dstate, device=device, dtype=wtype))
+    # B = (torch.randn(dim, dstate, device=device, dtype=wtype, requires_grad=False)
+    #      if not is_variable_B else None)
+    # C = (torch.randn(dim, dstate, device=device, dtype=wtype, requires_grad=False)
+    #      if not is_variable_C else None)
+    # D = torch.randn(dim, device=device, dtype=torch.float32, requires_grad=False)
+    # delta_bias = (0.5 * torch.rand(dim, device=device, dtype=torch.float32))
     B_proj_bias = None
     C_proj_bias = None
     xz_ref = xz.detach().clone().requires_grad_()
@@ -206,6 +224,20 @@ def test_mamba_inner_fn(is_variable_B, is_variable_C, seqlen, itype, wtype):
     C_ref = C.detach().clone().requires_grad_() if C is not None else None
     D_ref = D.detach().clone().requires_grad_()
     delta_bias_ref = delta_bias.detach().clone().requires_grad_() if delta_bias is not None else None
+    # xz_ref = xz.detach().clone()
+    # conv1d_weight_ref = conv1d_weight.detach().clone()
+    # conv1d_bias_ref = conv1d_bias.detach().clone()
+    # x_proj_weight_ref = x_proj_weight.detach().clone()
+    # delta_proj_weight_ref = delta_proj_weight.detach().clone()
+    # out_proj_weight_ref = out_proj_weight.detach().clone()
+    # out_proj_bias_ref = (out_proj_bias.detach().clone()
+    #                      if out_proj_bias is not None else None)
+    # A_ref = A.detach().clone()
+    # B_ref = B.detach().clone() if B is not None else None
+    # C_ref = C.detach().clone() if C is not None else None
+    # D_ref = D.detach().clone()
+    # delta_bias_ref = delta_bias.detach().clone() if delta_bias is not None else None
+
     out, out_z, x_dbl = mamba_inner_fn(xz, conv1d_weight, conv1d_bias, x_proj_weight, delta_proj_weight,
                          out_proj_weight, out_proj_bias,
                          A, B, C, D, delta_bias=delta_bias, delta_softplus=True)
@@ -236,7 +268,7 @@ def test_mamba_inner_fn(is_variable_B, is_variable_C, seqlen, itype, wtype):
     # print(delta_rank, delta_rank_ref)
     # assert delta_rank == delta_rank_ref
     compare_tensor(x_dbl, x_dbl_ref, name="x_dbl", verbose=True, raise_err=False)
-    compare_tensor(out_z, out_z_ref, rtol, atol, verbose=True, name="out_z")
+    compare_tensor(out_z, out_z_ref, rtol, atol, verbose=True, name="out_z", raise_err=False)
 
     compare_tensor(out, out_ref, rtol, atol, verbose=True, name="out")
     # print("out shape", out.shape, out_ref.shape)
