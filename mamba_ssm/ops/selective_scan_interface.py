@@ -355,3 +355,66 @@ def mamba_inner_ref(
             C = rearrange(C, "(b l) (dstate two) -> b dstate (l two)", l=L, two=2).contiguous()
     y = selective_scan_fn(x, delta, A, B, C, D, z=z, delta_bias=delta_bias, delta_softplus=True)
     return F.linear(rearrange(y, "b d l -> b l d"), out_proj_weight, out_proj_bias)
+
+def print_memory_layout(tensor):
+    strides = tensor.stride()
+    dimensions = list(range(tensor.dim()))
+    # Sort dimensions based on strides in descending order (largest stride first)
+    sorted_dims = sorted(dimensions, key=lambda x: strides[x], reverse=True)
+    layout = "->".join(f"Dim {dim} (Stride {strides[dim]})" for dim in sorted_dims)
+    print("Memory layout order:", layout)
+
+# # Example usage
+# tensor = torch.randn(2, 3, 4, device="cuda")  # Create a random 3D tensor
+# print_memory_layout(tensor)
+
+def compare_tensor(out, out_ref, rtol=None, atol=None, verbose=False, name="output", raise_err=True):
+    """
+    Compare two torch tensors and assert if they are equal within a tolerance.
+
+    Args:
+        out (torch.Tensor): The output tensor to be compared.
+        out_ref (torch.Tensor): The reference output tensor.
+        rtol (float, optional): The relative tolerance. Defaults to 1e-5.
+        atol (float, optional): The absolute tolerance. Defaults to 1e-8.
+        verbose (bool, optional): Whether to print verbose output. Defaults to False.
+    """
+    print("COMPARING TESNORS")
+    if verbose:
+        print(f"{name} shape", out.shape, out_ref.shape)
+    if rtol is None and atol is None:
+        rtol, atol = (6e-4, 2e-3)
+    assert(out.shape == out_ref.shape)
+
+    if verbose:
+        print(f'{name} max diff: {(out - out_ref).abs().max().item()}')
+        print(f'{name} mean diff: {(out - out_ref).abs().mean().item()}')
+    if raise_err:
+        assert torch.allclose(out, out_ref, rtol=rtol, atol=atol)
+    else:
+        print("passed test", torch.allclose(out, out_ref, rtol=rtol, atol=atol))
+
+def inspect_tensor_properties(tensor, name=None):
+    """
+    Inspect and print various properties of a given PyTorch tensor.
+    
+    Args:
+        tensor (torch.Tensor): The tensor to inspect.
+    """
+    if name is not None:
+        print(f"INSPECTING {name}")
+    print("Shape:", tensor.shape)
+    print("Data type:", tensor.dtype)
+    print("Device:", tensor.device)
+    print("Requires grad:", tensor.requires_grad)
+    print("Is contiguous:", tensor.is_contiguous())
+    print("Memory format:", end=" ")
+    print_memory_layout(tensor)
+    print("Contains NaN:", torch.isnan(tensor).any().item())
+    print("Contains Inf:", torch.isinf(tensor).any().item())
+    print("Sample values:", tensor.flatten()[:10])
+    print("Minimum value:", torch.min(tensor).item())
+    print("Maximum value:", torch.max(tensor).item())
+    print("Mean value:", torch.mean(tensor.float()).item())  # Use float() if necessary to avoid dtype issues
+    print("Standard deviation:", torch.std(tensor.float()).item())  # Adding standard deviation
+    print("~"*50)

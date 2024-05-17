@@ -10,7 +10,7 @@ from einops import rearrange
 
 from mamba_ssm.ops.selective_scan_interface import selective_scan_fn, selective_scan_ref
 from mamba_ssm.ops.selective_scan_interface import mamba_inner_fn, mamba_inner_ref
-
+from mamba_ssm.ops.selective_scan_interface import compare_tensor
 
 # @pytest.mark.parametrize('wtype', [torch.float32, torch.complex64])
 @pytest.mark.parametrize('wtype', [torch.float32])
@@ -216,7 +216,8 @@ def test_mamba_inner_fn(is_variable_B, is_variable_C, seqlen, itype, wtype):
 
     print(f'Output max diff: {(out - out_ref).abs().max().item()}')
     print(f'Output mean diff: {(out - out_ref).abs().mean().item()}')
-    assert torch.allclose(out, out_ref, rtol=rtol, atol=atol)
+    # assert torch.allclose(out, out_ref, rtol=rtol, atol=atol)
+    compare_tensor(out, out_ref, rtol, atol, verbose=True, name="out")
 
     g = torch.randn_like(out)
     out_ref.backward(g)
