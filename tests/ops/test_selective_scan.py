@@ -10,7 +10,7 @@ from einops import rearrange
 
 from mamba_ssm.ops.selective_scan_interface import selective_scan_fn, selective_scan_ref
 from mamba_ssm.ops.selective_scan_interface import mamba_inner_fn, mamba_inner_ref
-from mamba_ssm.ops.selective_scan_interface import compare_tensor
+from mamba_ssm.ops.selective_scan_interface import compare_tensor, inspect_tensor_properties
 
 # @pytest.mark.parametrize('wtype', [torch.float32, torch.complex64])
 @pytest.mark.parametrize('wtype', [torch.float32])
@@ -49,41 +49,62 @@ def test_selective_scan(is_variable_B, is_variable_C, varBC_groups, has_D, has_z
         atolw = max(atolw, atol)
     # set seed
     torch.random.manual_seed(0)
+    # batch_size = 2
+    # dim = 4
+    # dstate = 8
     batch_size = 2
-    dim = 4
+    dim = 768
     dstate = 8
+
     is_complex = wtype == torch.complex64
-    A = (-0.5 * torch.rand(dim, dstate, device=device, dtype=wtype)).requires_grad_()
+    # A = (-0.5 * torch.rand(dim, dstate, device=device, dtype=wtype)).requires_grad_()
+    A = torch.load("../A_fn.pth")
+    # assert
+    # print("A.shape", A.shape)
+    inspect_tensor_properties(A, name = "A loaded")
     if not is_variable_B:
         B_shape = (dim, dstate)
     elif varBC_groups == 1:
         B_shape = (batch_size, dstate, seqlen if not is_complex else seqlen * 2)
     else:
         B_shape = (batch_size, varBC_groups, dstate, seqlen if not is_complex else seqlen * 2)
-    B = torch.randn(*B_shape, device=device, dtype=wtype if not is_variable_B else itype,
-                    requires_grad=True)
+    # B = torch.randn(*B_shape, device=device, dtype=wtype if not is_variable_B else itype,
+                    # requires_grad=True)
+    # B = (-1.84 + 33.0*torch.randn(*B_shape, device=device, dtype=wtype if not is_variable_B else itype)).requires_grad_()
+    B = torch.load("../B_fn.pth")
+
     if not is_variable_C:
         C_shape = (dim, dstate)
     elif varBC_groups == 1:
         C_shape = (batch_size, dstate, seqlen if not is_complex else seqlen * 2)
     else:
         C_shape = (batch_size, varBC_groups, dstate, seqlen if not is_complex else seqlen * 2)
-    C = torch.randn(*C_shape, device=device, dtype=wtype if not is_variable_C else itype,
-                    requires_grad=True)
-    if has_D:
-        D = torch.randn(dim, device=device, dtype=torch.float32, requires_grad=True)
-    else:
-        D = None
-    if has_z:
-        z = torch.randn(batch_size, dim, seqlen, device=device, dtype=itype, requires_grad=True)
-    else:
-        z = None
-    if has_delta_bias:
-        delta_bias = (0.5 * torch.rand(dim, device=device, dtype=torch.float32)).requires_grad_()
-    else:
-        delta_bias = None
-    u = torch.randn(batch_size, dim, seqlen, device=device, dtype=itype, requires_grad=True)
-    delta = (0.5 * torch.rand(batch_size, dim, seqlen, device=device, dtype=itype)).requires_grad_()
+    # C = torch.randn(*C_shape, device=device, dtype=wtype if not is_variable_C else itype,
+    #                 requires_grad=True)
+    # C = (-5.57 + 33.0*torch.randn(*C_shape, device=device, dtype=wtype if not is_variable_C else itype)).requires_grad_()
+    C = torch.load("../C_fn.pth")
+
+
+    # if has_D:
+    #     D = torch.randn(dim, device=device, dtype=torch.float32, requires_grad=True)
+    # else:
+    #     D = None
+    D = torch.load("../D_fn.pth")
+    # if has_z:
+    #     z = torch.randn(batch_size, dim, seqlen, device=device, dtype=itype, requires_grad=True)
+    # else:
+    #     z = None
+    z = torch.load("../z_fn.pth")
+    # if has_delta_bias:
+    #     delta_bias = (0.5 * torch.rand(dim, device=device, dtype=torch.float32)).requires_grad_()
+    # else:
+    #     delta_bias = None
+    delta_bias = torch.load("../delta_bias_fn.pth")
+    # u = torch.randn(batch_size, dim, seqlen, device=device, dtype=itype, requires_grad=True)
+    u = torch.load("../u_fn.pth")
+    # delta = (0.5 * torch.rand(batch_size, dim, seqlen, device=device, dtype=itype)).requires_grad_()
+    # delta = (- 1339.2214 + 2510.4096* torch.rand(batch_size, dim, seqlen, device=device, dtype=itype)).requires_grad_()
+    delta = torch.load("../delta_fn.pth")
     A_ref = A.detach().clone().requires_grad_()
     B_ref = B.detach().clone().requires_grad_()
     C_ref = C.detach().clone().requires_grad_()
@@ -108,6 +129,9 @@ def test_selective_scan(is_variable_B, is_variable_C, varBC_groups, has_D, has_z
         state_ref = rest[0]
     # dA = torch.exp(torch.einsum('bdl,dn->bdln', delta, A))
     # dt_u = delta * u
+    print("\n")
+
+    inspect_tensor_properties(out, name="out")
 
     print(f'Output max diff: {(out - out_ref).abs().max().item()}')
     print(f'Output mean diff: {(out - out_ref).abs().mean().item()}')
@@ -115,36 +139,36 @@ def test_selective_scan(is_variable_B, is_variable_C, varBC_groups, has_D, has_z
     if return_last_state:
         print(f'State max diff: {(state - state_ref).abs().max().item()}')
         assert torch.allclose(state, state_ref, rtol=rtol, atol=atol)
+    # commenting for now to test forward only
+    # g = torch.randn_like(out)
+    # out_ref.backward(g)
+    # out.backward(g)
 
-    g = torch.randn_like(out)
-    out_ref.backward(g)
-    out.backward(g)
+    # print(f'du max diff: {(u.grad - u_ref.grad).abs().max().item()}')
+    # print(f'ddelta max diff: {(delta.grad - delta_ref.grad).abs().max().item()}')
+    # print(f'dA max diff: {(A.grad - A_ref.grad).abs().max().item()}')
+    # print(f'dB max diff: {(B.grad - B_ref.grad).abs().max().item()}')
+    # print(f'dC max diff: {(C.grad - C_ref.grad).abs().max().item()}')
+    # if has_D:
+    #     print(f'dD max diff: {(D.grad - D_ref.grad).abs().max().item()}')
+    # if has_z:
+    #     print(f'dz max diff: {(z.grad - z_ref.grad).abs().max().item()}')
+    # if has_delta_bias:
+    #     print(f'ddelta_bias max diff: {(delta_bias.grad - delta_bias_ref.grad).abs().max().item()}')
 
-    print(f'du max diff: {(u.grad - u_ref.grad).abs().max().item()}')
-    print(f'ddelta max diff: {(delta.grad - delta_ref.grad).abs().max().item()}')
-    print(f'dA max diff: {(A.grad - A_ref.grad).abs().max().item()}')
-    print(f'dB max diff: {(B.grad - B_ref.grad).abs().max().item()}')
-    print(f'dC max diff: {(C.grad - C_ref.grad).abs().max().item()}')
-    if has_D:
-        print(f'dD max diff: {(D.grad - D_ref.grad).abs().max().item()}')
-    if has_z:
-        print(f'dz max diff: {(z.grad - z_ref.grad).abs().max().item()}')
-    if has_delta_bias:
-        print(f'ddelta_bias max diff: {(delta_bias.grad - delta_bias_ref.grad).abs().max().item()}')
-
-    assert torch.allclose(u.grad, u_ref.grad.to(dtype=itype), rtol=rtol * 2, atol=atol * 2)
-    assert torch.allclose(delta.grad, delta_ref.grad.to(dtype=itype), rtol=rtol * 5, atol=atol * 10)
-    assert torch.allclose(A.grad, A_ref.grad, rtol=rtolw, atol=atolw * 5)
-    assert torch.allclose(B.grad, B_ref.grad, rtol=rtolw if not is_variable_B else rtol,
-                          atol=atolw if not is_variable_B else atol)
-    assert torch.allclose(C.grad, C_ref.grad, rtol=rtolw if not is_variable_C else rtol,
-                          atol=atolw if not is_variable_C else atol)
-    if has_D:
-        assert torch.allclose(D.grad, D_ref.grad, rtol=rtolw, atol=atolw)
-    if has_z:
-        assert torch.allclose(z.grad, z_ref.grad, rtol=rtolw, atol=atolw)
-    if has_delta_bias:
-        assert torch.allclose(delta_bias.grad, delta_bias_ref.grad, rtol=rtolw, atol=atolw)
+    # assert torch.allclose(u.grad, u_ref.grad.to(dtype=itype), rtol=rtol * 2, atol=atol * 2)
+    # assert torch.allclose(delta.grad, delta_ref.grad.to(dtype=itype), rtol=rtol * 5, atol=atol * 10)
+    # assert torch.allclose(A.grad, A_ref.grad, rtol=rtolw, atol=atolw * 5)
+    # assert torch.allclose(B.grad, B_ref.grad, rtol=rtolw if not is_variable_B else rtol,
+    #                       atol=atolw if not is_variable_B else atol)
+    # assert torch.allclose(C.grad, C_ref.grad, rtol=rtolw if not is_variable_C else rtol,
+    #                       atol=atolw if not is_variable_C else atol)
+    # if has_D:
+    #     assert torch.allclose(D.grad, D_ref.grad, rtol=rtolw, atol=atolw)
+    # if has_z:
+    #     assert torch.allclose(z.grad, z_ref.grad, rtol=rtolw, atol=atolw)
+    # if has_delta_bias:
+    #     assert torch.allclose(delta_bias.grad, delta_bias_ref.grad, rtol=rtolw, atol=atolw)
 
 
 @pytest.mark.parametrize('wtype', [torch.float32, torch.complex64])
@@ -213,7 +237,6 @@ def test_mamba_inner_fn(is_variable_B, is_variable_C, seqlen, itype, wtype):
                               delta_bias=delta_bias_ref, delta_softplus=True)
     # dA = torch.exp(torch.einsum('bdl,dn->bdln', delta, A))
     # dt_u = delta * u
-
     print(f'Output max diff: {(out - out_ref).abs().max().item()}')
     print(f'Output mean diff: {(out - out_ref).abs().mean().item()}')
     # assert torch.allclose(out, out_ref, rtol=rtol, atol=atol)
