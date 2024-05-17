@@ -222,6 +222,18 @@ class MambaInnerFn(torch.autograd.Function):
                 C = C.contiguous()
         if D is not None:
             D = D.contiguous()
+
+        print("PROPERTIES OF SELECTIVE SCAN INPUTS FN")
+        inspect_tensor_properties(conv1d_out, name="CONV OUT fn")
+        inspect_tensor_properties(delta, name="delta fn")
+        inspect_tensor_properties(A, name="A fn")
+        inspect_tensor_properties(B, name="B fn")
+        inspect_tensor_properties(C, name="C fn")
+        inspect_tensor_properties(D, name="D fn")
+        inspect_tensor_properties(z, name="z fn")
+        inspect_tensor_properties(delta_bias, name="delta_bias fn")
+        print("delta softplus", delta_softplus)
+
         out, scan_intermediates, out_z = selective_scan_cuda.fwd(
             conv1d_out, delta, A, B, C, D, z, delta_bias, delta_softplus
         )
@@ -353,6 +365,18 @@ def mamba_inner_ref(
             C = rearrange(C, "(b l) dstate -> b dstate l", l=L).contiguous()
         else:
             C = rearrange(C, "(b l) (dstate two) -> b dstate (l two)", l=L, two=2).contiguous()
+
+    print("PROPERTIES OF SELECTIVE SCAN INPUTS REF")
+    inspect_tensor_properties(x, name="x ref")
+    inspect_tensor_properties(delta, name="delta ref")
+    inspect_tensor_properties(A, name="A ref")
+    inspect_tensor_properties(B, name="B ref")
+    inspect_tensor_properties(C, name="C ref")
+    inspect_tensor_properties(D, name="D ref")
+    inspect_tensor_properties(z, name="z ref")
+    inspect_tensor_properties(delta_bias, name="delta_bias ref")
+    print("delta softplus ref", delta_softplus)
+
     y = selective_scan_fn(x, delta, A, B, C, D, z=z, delta_bias=delta_bias, delta_softplus=True)
     return F.linear(rearrange(y, "b d l -> b l d"), out_proj_weight, out_proj_bias)
 
