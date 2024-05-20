@@ -15,6 +15,21 @@ except ImportError:
 
 import selective_scan_cuda
 
+import subprocess
+def get_rocm_version():
+    # Command and file path from which to read the ROCm version
+    command = ['cat', '/opt/rocm/.info/version']
+    
+    try:
+        # Running the command and capturing the output
+        result = subprocess.run(command, check=True, text=True, stdout=subprocess.PIPE)
+        rocm_version = result.stdout.strip()  # strip() to remove any extra whitespace
+    except subprocess.CalledProcessError as e:
+        # Handle the error case if the command fails
+        print(f"Failed to get ROCm version: {e}")
+        rocm_version = None
+    
+    return rocm_version
 
 class SelectiveScanFn(torch.autograd.Function):
 
@@ -223,15 +238,13 @@ class MambaInnerFn(torch.autograd.Function):
         if D is not None:
             D = D.contiguous()
 
-        print("PROPERTIES OF SELECTIVE SCAN INPUTS FN")
-        inspect_tensor_properties(conv1d_out, name="CONV OUT fn")
-        inspect_tensor_properties(delta, name="delta fn")
-        inspect_tensor_properties(A, name="A fn")
-        inspect_tensor_properties(B, name="B fn")
-        inspect_tensor_properties(C, name="C fn")
-        inspect_tensor_properties(D, name="D fn")
-        inspect_tensor_properties(z, name="z fn")
-        inspect_tensor_properties(delta_bias, name="delta_bias fn")
+        rocm_version = get_rocm_version()
+        print(f"PROPERTIES OF SELECTIVE SCAN INPUTS {rocm_version}FN")
+        tensors = [(conv1d_out, "u"), (delta, "delta"), (A, "A"), (B, "B"), (C, "C"), (D, "D"), (z, "z"), (delta_bias, "delta_bias")]
+        for tensor, name in tensors:
+            name = f"{name} {rocm_version} fn"
+            inspect_tensor_properties(tensor, name=name)
+            torch.save(tensor, f"../{name}.pth")
         print("delta softplus", delta_softplus)
 
         out, scan_intermediates, out_z = selective_scan_cuda.fwd(
@@ -366,16 +379,14 @@ def mamba_inner_ref(
         else:
             C = rearrange(C, "(b l) (dstate two) -> b dstate (l two)", l=L, two=2).contiguous()
 
-    print("PROPERTIES OF SELECTIVE SCAN INPUTS REF")
-    inspect_tensor_properties(x, name="x ref")
-    inspect_tensor_properties(delta, name="delta ref")
-    inspect_tensor_properties(A, name="A ref")
-    inspect_tensor_properties(B, name="B ref")
-    inspect_tensor_properties(C, name="C ref")
-    inspect_tensor_properties(D, name="D ref")
-    inspect_tensor_properties(z, name="z ref")
-    inspect_tensor_properties(delta_bias, name="delta_bias ref")
-    print("delta softplus ref", delta_softplus)
+    rocm_version = get_rocm_version()
+    print(f"PROPERTIES OF SELECTIVE SCAN INPUTS {rocm_version} REF")
+    tensors = [(x, "u"), (delta, "delta"), (A, "A"), (B, "B"), (C, "C"), (D, "D"), (z, "z"), (delta_bias, "delta_bias")]
+    for tensor, name in tensors:
+        name = f"{name} {rocm_version} ref"
+        inspect_tensor_properties(tensor, name=name)
+        torch.save(tensor, f"../{name}.pth")
+    print(f"delta softplus {rocm_version} ref", delta_softplus)
 
     y = selective_scan_fn(x, delta, A, B, C, D, z=z, delta_bias=delta_bias, delta_softplus=True)
     return F.linear(rearrange(y, "b d l -> b l d"), out_proj_weight, out_proj_bias)
@@ -392,7 +403,7 @@ def print_memory_layout(tensor):
 # tensor = torch.randn(2, 3, 4, device="cuda")  # Create a random 3D tensor
 # print_memory_layout(tensor)
 
-def compare_tensor(out, out_ref, rtol=None, atol=None, verbose=False, name="output", raise_err=True):
+def compare_tensor(out, out_ref, rtol=None, atol=None, verbose=False, name=f"output", raise_err=True):
     """
     Compare two torch tensors and assert if they are equal within a tolerance.
 
