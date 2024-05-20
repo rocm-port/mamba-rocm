@@ -250,6 +250,11 @@ class MambaInnerFn(torch.autograd.Function):
         out, scan_intermediates, out_z = selective_scan_cuda.fwd(
             conv1d_out, delta, A, B, C, D, z, delta_bias, delta_softplus
         )
+
+        name = f"out {rocm_version} fn"
+        inspect_tensor_properties(tensor, name=name)
+        torch.save(tensor, f"../{name}.pth")
+
         ctx.delta_softplus = delta_softplus
         ctx.out_proj_bias_is_None = out_proj_bias is None
         ctx.checkpoint_lvl = checkpoint_lvl
@@ -389,6 +394,11 @@ def mamba_inner_ref(
     print(f"delta softplus {rocm_version} ref", delta_softplus)
 
     y = selective_scan_fn(x, delta, A, B, C, D, z=z, delta_bias=delta_bias, delta_softplus=True)
+
+    name = f"out {rocm_version} ref"
+    inspect_tensor_properties(tensor, name=name)
+    torch.save(tensor, f"../{name}.pth")
+
     return F.linear(rearrange(y, "b d l -> b l d"), out_proj_weight, out_proj_bias)
 
 def print_memory_layout(tensor):
