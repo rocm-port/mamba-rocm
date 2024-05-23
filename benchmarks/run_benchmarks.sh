@@ -1,11 +1,50 @@
 #!/bin/bash
 
-SCRIPT_PATH="/home/ajassani/hipify_torch/mamba-rocm/benchmarks/scaling_data.py"
-SAVE_DIR="/home/ajassani/hipify_torch/data_collected/april19_2024_causal_conv"
+SCRIPT_PATH="scaling_data.py"
+SAVE_DIR=""
 REPEATS=3
 MODELS=("state-spaces/mamba-1.4b" "EleutherAI/pythia-1.4b")
 EXPTS=(1 2)
 DTYPES=("float32" "float16")
+MODEL_SPECIFIED=false
+
+while [[ $# -gt 0 ]]; do
+    key="$1"
+    case $key in
+        -s|--save-dir)
+            SAVE_DIR="$2"
+            shift
+            ;;
+        -r|--repeats)
+            REPEATS="$2"
+            shift
+            ;;
+        -m|--model)
+            MODELS=("$2")
+            MODEL_SPECIFIED=true
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+if [[ -z "$SAVE_DIR" ]]; then
+    echo "Error: Save directory not provided"
+    exit 1
+fi
+
+echo "Save directory: $SAVE_DIR"
+echo "Repeats: $REPEATS"
+
+if ! $MODEL_SPECIFIED; then
+    echo "Running benchmarks for default models:"
+else
+    echo "Running benchmarks for specified model: ${MODELS[0]}"
+fi
 
 mkdir -p "$SAVE_DIR"
 
