@@ -14,9 +14,8 @@ from mamba_ssm.ops.selective_scan_interface import mamba_inner_fn, mamba_inner_r
 
 # @pytest.mark.parametrize('wtype', [torch.float32, torch.complex64])
 @pytest.mark.parametrize('wtype', [torch.float32])
-@pytest.mark.parametrize('itype', [torch.float32, torch.float16, torch.bfloat16])
-# @pytest.mark.parametrize('itype', [torch.float32])
-# @pytest.mark.parametrize('itype', [torch.float16])
+# @pytest.mark.parametrize('itype', [torch.float32, torch.float16, torch.bfloat16])
+@pytest.mark.parametrize('itype', [torch.float32])
 # @pytest.mark.parametrize('seqlen', [8, 16, 32, 64, 128, 256, 372, 512, 784, 1024, 1134, 2048, 4096])
 @pytest.mark.parametrize('seqlen', [128, 256, 512, 1024, 2048, 4096])
 # @pytest.mark.parametrize('seqlen', [128])
@@ -133,22 +132,22 @@ def test_selective_scan(is_variable_B, is_variable_C, varBC_groups, has_D, has_z
     if has_delta_bias:
         print(f'ddelta_bias max diff: {(delta_bias.grad - delta_bias_ref.grad).abs().max().item()}')
 
-#     # assert torch.allclose(u.grad, u_ref.grad.to(dtype=itype), rtol=rtol * 2, atol=atol * 2)
-#     # assert torch.allclose(delta.grad, delta_ref.grad.to(dtype=itype), rtol=rtol * 5, atol=atol * 10)
-#     # assert torch.allclose(A.grad, A_ref.grad, rtol=rtolw, atol=atolw * 5)
-#     # assert torch.allclose(B.grad, B_ref.grad, rtol=rtolw if not is_variable_B else rtol,
-#     #                       atol=atolw if not is_variable_B else atol)
-#     # assert torch.allclose(C.grad, C_ref.grad, rtol=rtolw if not is_variable_C else rtol,
-#     #                       atol=atolw if not is_variable_C else atol)
-#     # if has_D:
-#     #     assert torch.allclose(D.grad, D_ref.grad, rtol=rtolw, atol=atolw)
-#     # if has_z:
-#     #     assert torch.allclose(z.grad, z_ref.grad, rtol=rtolw, atol=atolw)
-#     # if has_delta_bias:
-#     #     assert torch.allclose(delta_bias.grad, delta_bias_ref.grad, rtol=rtolw, atol=atolw)
+    assert torch.allclose(u.grad, u_ref.grad.to(dtype=itype), rtol=rtol * 2, atol=atol * 2)
+    assert torch.allclose(delta.grad, delta_ref.grad.to(dtype=itype), rtol=rtol * 5, atol=atol * 10)
+    assert torch.allclose(A.grad, A_ref.grad, rtol=rtolw, atol=atolw * 5)
+    assert torch.allclose(B.grad, B_ref.grad, rtol=rtolw if not is_variable_B else rtol,
+                          atol=atolw if not is_variable_B else atol)
+    assert torch.allclose(C.grad, C_ref.grad, rtol=rtolw if not is_variable_C else rtol,
+                          atol=atolw if not is_variable_C else atol)
+    if has_D:
+        assert torch.allclose(D.grad, D_ref.grad, rtol=rtolw, atol=atolw)
+    if has_z:
+        assert torch.allclose(z.grad, z_ref.grad, rtol=rtolw, atol=atolw)
+    if has_delta_bias:
+        assert torch.allclose(delta_bias.grad, delta_bias_ref.grad, rtol=rtolw, atol=atolw)
 
 
-@pytest.mark.parametrize('wtype', [torch.float32])
+@pytest.mark.parametrize('wtype', [torch.float32, torch.complex64])
 # @pytest.mark.parametrize('wtype', [torch.complex64])
 # @pytest.mark.parametrize('itype', [torch.float32, torch.float16, torch.bfloat16])
 @pytest.mark.parametrize('itype', [torch.float32])
@@ -175,10 +174,8 @@ def test_mamba_inner_fn(is_variable_B, is_variable_C, seqlen, itype, wtype):
     dt_rank = 48
     is_complex = wtype == torch.complex64
     xz = torch.randn(batch_size, 2 * dim, seqlen, device=device, dtype=itype, requires_grad=True)
-    # conv1d_weight = torch.randn(dim, 1, 3, device=device, dtype=torch.float32, requires_grad=True)
-    # conv1d_bias = torch.randn(dim, device=device, dtype=torch.float32, requires_grad=True)
-    conv1d_weight = torch.randn(dim, 1, 3, device=device, dtype=itype, requires_grad=True)
-    conv1d_bias = torch.randn(dim, device=device, dtype=itype, requires_grad=True)
+    conv1d_weight = torch.randn(dim, 1, 3, device=device, dtype=torch.float32, requires_grad=True)
+    conv1d_bias = torch.randn(dim, device=device, dtype=torch.float32, requires_grad=True)
     x_proj_weight = torch.randn(dt_rank + (bool(is_variable_B) + bool(is_variable_C)) * dstate
                                 * (1 if not is_complex else 2),
                                 dim, device=device, dtype=itype, requires_grad=True)
@@ -190,8 +187,7 @@ def test_mamba_inner_fn(is_variable_B, is_variable_C, seqlen, itype, wtype):
          if not is_variable_B else None)
     C = (torch.randn(dim, dstate, device=device, dtype=wtype, requires_grad=True)
          if not is_variable_C else None)
-    # TODO: testing purposes
-    D = 0*torch.randn(dim, device=device, dtype=torch.float32, requires_grad=True)
+    D = torch.randn(dim, device=device, dtype=torch.float32, requires_grad=True)
     delta_bias = (0.5 * torch.rand(dim, device=device, dtype=torch.float32)).requires_grad_()
     B_proj_bias = None
     C_proj_bias = None
@@ -222,30 +218,30 @@ def test_mamba_inner_fn(is_variable_B, is_variable_C, seqlen, itype, wtype):
     print(f'Output mean diff: {(out - out_ref).abs().mean().item()}')
     assert torch.allclose(out, out_ref, rtol=rtol, atol=atol)
 
-#     g = torch.randn_like(out)
-#     out_ref.backward(g)
-#     out.backward(g)
+    g = torch.randn_like(out)
+    out_ref.backward(g)
+    out.backward(g)
 
-#     print(f'dxz max diff: {(xz.grad - xz_ref.grad).abs().max().item()}')
-#     print(f'dA max diff: {(A.grad - A_ref.grad).abs().max().item()}')
-#     if not is_variable_B:
-#         print(f'dB max diff: {(B.grad - B_ref.grad).abs().max().item()}')
-#     if not is_variable_C:
-#         print(f'dC max diff: {(C.grad - C_ref.grad).abs().max().item()}')
-#     print(f'dD max diff: {(D.grad - D_ref.grad).abs().max().item()}')
-#     print(f'ddelta_bias max diff: {(delta_bias.grad - delta_bias_ref.grad).abs().max().item()}')
-#     print(f'dout_proj_weight max diff: {(out_proj_weight.grad - out_proj_weight_ref.grad).abs().max().item()}')
-#     print(f'ddelta_proj_weight max diff: {(delta_proj_weight.grad - delta_proj_weight_ref.grad).abs().max().item()}')
-#     print(f'dx_proj_weight max diff: {(x_proj_weight.grad - x_proj_weight_ref.grad).abs().max().item()}')
-#     print(f'dconv1d_weight max diff: {(conv1d_weight.grad - conv1d_weight_ref.grad).abs().max().item()}')
-#     print(f'dconv1d_bias max diff: {(conv1d_bias.grad - conv1d_bias_ref.grad).abs().max().item()}')
+    print(f'dxz max diff: {(xz.grad - xz_ref.grad).abs().max().item()}')
+    print(f'dA max diff: {(A.grad - A_ref.grad).abs().max().item()}')
+    if not is_variable_B:
+        print(f'dB max diff: {(B.grad - B_ref.grad).abs().max().item()}')
+    if not is_variable_C:
+        print(f'dC max diff: {(C.grad - C_ref.grad).abs().max().item()}')
+    print(f'dD max diff: {(D.grad - D_ref.grad).abs().max().item()}')
+    print(f'ddelta_bias max diff: {(delta_bias.grad - delta_bias_ref.grad).abs().max().item()}')
+    print(f'dout_proj_weight max diff: {(out_proj_weight.grad - out_proj_weight_ref.grad).abs().max().item()}')
+    print(f'ddelta_proj_weight max diff: {(delta_proj_weight.grad - delta_proj_weight_ref.grad).abs().max().item()}')
+    print(f'dx_proj_weight max diff: {(x_proj_weight.grad - x_proj_weight_ref.grad).abs().max().item()}')
+    print(f'dconv1d_weight max diff: {(conv1d_weight.grad - conv1d_weight_ref.grad).abs().max().item()}')
+    print(f'dconv1d_bias max diff: {(conv1d_bias.grad - conv1d_bias_ref.grad).abs().max().item()}')
 
-#     # assert torch.allclose(xz.grad, xz_ref.grad.to(dtype=itype), rtol=rtol * 2, atol=atol * 2)
-#     # assert torch.allclose(delta.grad, delta_ref.grad.to(dtype=itype), rtol=rtol * 5, atol=atol * 10)
-#     # assert torch.allclose(A.grad, A_ref.grad, rtol=rtolw, atol=atolw * 5)
-#     # assert torch.allclose(B.grad, B_ref.grad, rtol=rtolw if not is_variable_B else rtol,
-#     #                       atol=atolw if not is_variable_B else atol)
-#     # assert torch.allclose(C.grad, C_ref.grad, rtol=rtolw if not is_variable_C else rtol,
-#     #                       atol=atolw if not is_variable_C else atol)
-#     # assert torch.allclose(D.grad, D_ref.grad, rtol=rtolw, atol=atolw)
-#     # assert torch.allclose(delta_bias.grad, delta_bias_ref.grad, rtol=rtolw, atol=atolw)
+    # assert torch.allclose(xz.grad, xz_ref.grad.to(dtype=itype), rtol=rtol * 2, atol=atol * 2)
+    # assert torch.allclose(delta.grad, delta_ref.grad.to(dtype=itype), rtol=rtol * 5, atol=atol * 10)
+    # assert torch.allclose(A.grad, A_ref.grad, rtol=rtolw, atol=atolw * 5)
+    # assert torch.allclose(B.grad, B_ref.grad, rtol=rtolw if not is_variable_B else rtol,
+    #                       atol=atolw if not is_variable_B else atol)
+    # assert torch.allclose(C.grad, C_ref.grad, rtol=rtolw if not is_variable_C else rtol,
+    #                       atol=atolw if not is_variable_C else atol)
+    # assert torch.allclose(D.grad, D_ref.grad, rtol=rtolw, atol=atolw)
+    # assert torch.allclose(delta_bias.grad, delta_bias_ref.grad, rtol=rtolw, atol=atolw)
