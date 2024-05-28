@@ -14,14 +14,22 @@ while [[ $# -gt 0 ]]; do
         -s|--save-dir)
             SAVE_DIR="$2"
             shift
+            shift
             ;;
         -r|--repeats)
             REPEATS="$2"
+            shift
             shift
             ;;
         -m|--model)
             MODELS=("$2")
             MODEL_SPECIFIED=true
+            shift
+            shift
+            ;;
+        --script-path)
+            SCRIPT_PATH="$2"
+            shift
             shift
             ;;
         *)
@@ -29,7 +37,6 @@ while [[ $# -gt 0 ]]; do
             exit 1
             ;;
     esac
-    shift
 done
 
 if [[ -z "$SAVE_DIR" ]]; then
@@ -39,6 +46,7 @@ fi
 
 echo "Save directory: $SAVE_DIR"
 echo "Repeats: $REPEATS"
+echo "Script path: $SCRIPT_PATH"
 
 if ! $MODEL_SPECIFIED; then
     echo "Running benchmarks for default models:"
