@@ -17,7 +17,7 @@ from mamba_ssm.ops.selective_scan_interface import mamba_inner_fn, mamba_inner_r
 # @pytest.mark.parametrize('itype', [torch.float32, torch.float16, torch.bfloat16])
 @pytest.mark.parametrize('itype', [torch.float32])
 # @pytest.mark.parametrize('seqlen', [8, 16, 32, 64, 128, 256, 372, 512, 784, 1024, 1134, 2048, 4096])
-@pytest.mark.parametrize('seqlen', [128, 256, 512, 1024, 2048, 4096])
+@pytest.mark.parametrize('seqlen', [4096])
 # @pytest.mark.parametrize('seqlen', [128])
 # @pytest.mark.parametrize("return_last_state", [False, True])
 @pytest.mark.parametrize("return_last_state", [True])
@@ -29,7 +29,7 @@ from mamba_ssm.ops.selective_scan_interface import mamba_inner_fn, mamba_inner_r
 @pytest.mark.parametrize('has_z', [True])
 # @pytest.mark.parametrize('has_D', [False, True])
 @pytest.mark.parametrize('has_D', [True])
-@pytest.mark.parametrize("varBC_groups", [1, 2])
+@pytest.mark.parametrize("varBC_groups", [1])
 # @pytest.mark.parametrize("varBC_groups", [1])
 # @pytest.mark.parametrize("is_variable_C", [False, True])
 @pytest.mark.parametrize("is_variable_C", [True])
@@ -117,6 +117,14 @@ def test_selective_scan(is_variable_B, is_variable_C, varBC_groups, has_D, has_z
         assert torch.allclose(state, state_ref, rtol=rtol, atol=atol)
 
     g = torch.randn_like(out)
+    print_memory_layout(g)
+
+    rocm_version = get_rocm_version()
+
+    torch.save(out, os.path.join("../may30_4096_debug", f"out {rocm_version}.pth"))
+    torch.save(g, os.path.join("../may30_4096_debug", f"g {rocm_version}.pth"))
+
+
     out_ref.backward(g)
     out.backward(g)
 
@@ -245,3 +253,28 @@ def test_mamba_inner_fn(is_variable_B, is_variable_C, seqlen, itype, wtype):
     #                       atol=atolw if not is_variable_C else atol)
     # assert torch.allclose(D.grad, D_ref.grad, rtol=rtolw, atol=atolw)
     # assert torch.allclose(delta_bias.grad, delta_bias_ref.grad, rtol=rtolw, atol=atolw)
+
+
+def print_memory_layout(tensor):
+    strides = tensor.stride()
+    dimensions = list(range(tensor.dim()))
+    # Sort dimensions based on strides in descending order (largest stride first)
+    sorted_dims = sorted(dimensions, key=lambda x: strides[x], reverse=True)
+    layout = "->".join(f"Dim {dim} (Stride {strides[dim]})" for dim in sorted_dims)
+    print("Memory layout order:", layout)
+
+import subprocess
+def get_rocm_version():
+    # Command and file path from which to read the ROCm version
+    command = ['cat', '/opt/rocm/.info/version']
+    
+    try:
+        # Running the command and capturing the output
+        result = subprocess.run(command, check=True, text=True, stdout=subprocess.PIPE)
+        rocm_version = result.stdout.strip()  # strip() to remove any extra whitespace
+    except subprocess.CalledProcessError as e:
+        # Handle the error case if the command fails
+        print(f"Failed to get ROCm version: {e}")
+        rocm_version = None
+    
+    return rocm_version
