@@ -5,7 +5,7 @@ import math
 import torch
 import torch.nn.functional as F
 import pytest
-
+import os
 from einops import rearrange
 
 from mamba_ssm.ops.selective_scan_interface import selective_scan_fn, selective_scan_ref
