@@ -508,7 +508,7 @@ void selective_scan_bwd_launch(SSMParamsBwd &params, cudaStream_t stream) {
 
                         dim3 grid(params.batch, params.dim);
                         
-                        auto kernel = &selective_scan_bwd_kernel<Ktraits>; // TODO: change to reinterpret cast? what's the best practice?
+                        auto kernel = &selective_scan_bwd_kernel<Ktraits>;
 
                         if (kSmemSize >= 48 * 1024) {
 
@@ -532,18 +532,39 @@ void selective_scan_bwd_launch(SSMParamsBwd &params, cudaStream_t stream) {
     });
 }
 
-// TODO: make conditional. What's the best practice?
 template<typename input_t, typename weight_t>
 void selective_scan_bwd_cuda(SSMParamsBwd &params, cudaStream_t stream) {
-    if (params.seqlen <= 128) {
-        selective_scan_bwd_launch<64, 4, input_t, weight_t>(params, stream);
-    } else if (params.seqlen <= 256) {
-        selective_scan_bwd_launch<64, 8, input_t, weight_t>(params, stream);
-    } else if (params.seqlen <= 512) {
-        selective_scan_bwd_launch<64, 16, input_t, weight_t>(params, stream);
-    } else if (params.seqlen <= 1024) {
-        selective_scan_bwd_launch<64, 16, input_t, weight_t>(params, stream);
-    } else {
-        selective_scan_bwd_launch<128, 16, input_t, weight_t>(params, stream);
+
+    #ifndef USE_ROCM
+        constexpr int warp_size = 32;
+    #else
+        constexpr int warp_size = rocprim::warp_size();
+    #endif
+
+    if (warp_size == 32) {
+        if (params.seqlen <= 128) {
+            selective_scan_bwd_launch<64, 4, input_t, weight_t>(params, stream);
+        } else if (params.seqlen <= 256) {
+            selective_scan_bwd_launch<64, 8, input_t, weight_t>(params, stream);
+        } else if (params.seqlen <= 512) {
+            selective_scan_bwd_launch<64, 16, input_t, weight_t>(params, stream);
+        } else if (params.seqlen <= 1024) {
+            selective_scan_bwd_launch<64, 16, input_t, weight_t>(params, stream);
+        } else {
+            selective_scan_bwd_launch<128, 16, input_t, weight_t>(params, stream);
+        }
     }
+    #ifdef USE_ROCM
+    else {
+        if (params.seqlen <= 256) {
+            selective_scan_bwd_launch<64, 4, input_t, weight_t>(params, stream);
+        } else if (params.seqlen <= 512) {
+            selective_scan_bwd_launch<64, 8, input_t, weight_t>(params, stream);
+        } else if (params.seqlen <= 1024) {
+            selective_scan_bwd_launch<64, 16, input_t, weight_t>(params, stream);
+        } else {
+            selective_scan_bwd_launch<128, 16, input_t, weight_t>(params, stream);
+        }
+    }
+    #endif
 }
