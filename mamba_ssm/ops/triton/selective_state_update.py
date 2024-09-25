@@ -9,21 +9,11 @@ import torch.nn.functional as F
 
 import triton
 import triton.language as tl
-from packaging import version
-TRITON3 = version.parse(triton.__version__) >= version.parse("3.0.0")
 
 from einops import rearrange, repeat
 
-if TRITON3:
-    @triton.jit
-    def dt_softplus(dt):
-        dt = tl.where(dt <= 20.0, tl.math.log(tl.math.exp(dt) + 1), dt)
-        return dt 
-else:
-    @triton.jit
-    def dt_softplus(dt):
-        dt = tl.where(dt <= 20.0, tl.math.log1p(tl.exp(dt)), dt)
-        return dt 
+from mamba_ssm.ops.triton.softplus import softplus
+
 
 @triton.heuristics({"HAS_DT_BIAS": lambda args: args["dt_bias_ptr"] is not None})
 @triton.heuristics({"HAS_D": lambda args: args["D_ptr"] is not None})
@@ -95,8 +85,7 @@ def _selective_scan_update_kernel(
         if HAS_DT_BIAS:
             dt += tl.load(dt_bias_ptrs, mask=offs_m < dim, other=0.0).to(tl.float32)
         if DT_SOFTPLUS:
-            #dt = tl.where(dt <= 20.0, tl.math.log1p(tl.exp(dt)), dt)
-            dt = dt_softplus(dt)
+            dt = tl.where(dt <= 20.0, softplus(dt), dt)
         A = tl.load(A_ptrs, mask=(offs_m[:, None] < dim) & (offs_n[None, :] < dstate), other=0.0).to(tl.float32)
         dA = tl.exp(A * dt[:, None])
     else:
@@ -104,8 +93,7 @@ def _selective_scan_update_kernel(
         if HAS_DT_BIAS:
             dt += tl.load(dt_bias_ptr).to(tl.float32)
         if DT_SOFTPLUS:
-            #dt = tl.where(dt <= 20.0, tl.math.log1p(tl.exp(dt)), dt)
-            dt = dt_softplus(dt)
+            dt = tl.where(dt <= 20.0, softplus(dt), dt)
         A = tl.load(A_ptr).to(tl.float32)
         dA = tl.exp(A * dt)  # scalar, not a matrix
 

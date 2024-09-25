@@ -3,7 +3,7 @@
 ![Mamba](assets/selection.png "Selective State Space")
 > **Mamba: Linear-Time Sequence Modeling with Selective State Spaces**\
 > Albert Gu*, Tri Dao*\
-> Paper: https://arxiv.org/abs/2312.00752\
+> Paper: https://arxiv.org/abs/2312.00752
 
 ![Mamba-2](assets/ssd_algorithm.png "State Space Dual Model")
 > **Transformers are SSMs: Generalized Models and Efficient Algorithms**\
@@ -32,8 +32,10 @@ If you are on ROCm 6.0, run the following steps to avoid errors during compilati
 
 ## Installation
 
-- [Option] `pip install causal-conv1d>=1.2.0`: an efficient implementation of a simple causal Conv1d layer used inside the Mamba block.
+- [Option] `pip install causal-conv1d>=1.4.0`: an efficient implementation of a simple causal Conv1d layer used inside the Mamba block.
 - `pip install mamba-ssm`: the core Mamba package.
+- `pip install mamba-ssm[causal-conv1d]`: To install core Mamba package and causal-conv1d.
+- `pip install mamba-ssm[dev]`: To install core Mamba package and dev depdencies.
 
 It can also be built from source with `pip install .` from this repository.
 
@@ -44,6 +46,8 @@ Other requirements:
 - NVIDIA GPU
 - PyTorch 1.12+
 - CUDA 11.6+
+
+For AMD cards, see additional prerequisites below.
 
 ## Usage
 
@@ -88,7 +92,7 @@ A simpler version is at [modules/mamba2_simple.py](mamba_ssm/modules/mamba2_simp
 The usage is similar to Mamba(-1):
 ``` python
 from mamba_ssm import Mamba2
-model = Mamba(
+model = Mamba2(
     # This module uses roughly 3 * expand * d_model^2 parameters
     d_model=dim, # Model dimension d_model
     d_state=64,  # SSM state expansion factor, typically 64 or 128
@@ -216,6 +220,19 @@ For [example](https://github.com/state-spaces/mamba/blob/f0affcf69f06d1d06cef018
 However, some frameworks may have post-initialization hooks (e.g. setting all bias terms in `nn.Linear` modules to zero).
 If this is the case, you may have to add custom logic (e.g. this [line](https://github.com/state-spaces/mamba/blob/f0affcf69f06d1d06cef018ff640bf080a11c421/mamba_ssm/modules/mamba_simple.py#L104) turns off re-initializing in our trainer, but would be a no-op in any other framework)
 that is specific to the training framework.
+
+## Additional Prerequisites for AMD cards
+
+### Patching ROCm
+
+If you are on ROCm 6.0, run the following steps to avoid errors during compilation. This is not required for ROCm 6.1 onwards.
+
+1. Locate your ROCm installation directory. This is typically found at `/opt/rocm/`, but may vary depending on your installation.
+
+2. Apply the Patch. Run with `sudo` in case you encounter permission issues.
+   ```bash
+    patch /opt/rocm/include/hip/amd_detail/amd_hip_bf16.h < rocm_patch/rocm6_0.patch 
+   ```
 
 
 ## Citation

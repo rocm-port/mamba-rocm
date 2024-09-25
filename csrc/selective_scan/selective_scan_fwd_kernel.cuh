@@ -351,26 +351,18 @@ template<typename input_t, typename weight_t>
 void selective_scan_fwd_cuda(SSMParamsBase &params, cudaStream_t stream) {
 
     #ifndef USE_ROCM
-        constexpr int warp_size = 32;
-    #else
-        constexpr int warp_size = rocprim::warp_size();
-    #endif
-
-    if (warp_size == 32) {
         if (params.seqlen <= 128) {           
-            selective_scan_fwd_launch<64, 4, input_t, weight_t>(params, stream);
+            selective_scan_fwd_launch<32, 4, input_t, weight_t>(params, stream);
         } else if (params.seqlen <= 256) {
-            selective_scan_fwd_launch<64, 8, input_t, weight_t>(params, stream);
+            selective_scan_fwd_launch<32, 8, input_t, weight_t>(params, stream);
         } else if (params.seqlen <= 512) {
-            selective_scan_fwd_launch<64, 16, input_t, weight_t>(params, stream);
+            selective_scan_fwd_launch<32, 16, input_t, weight_t>(params, stream);
         } else if (params.seqlen <= 1024) {
             selective_scan_fwd_launch<64, 16, input_t, weight_t>(params, stream);
         } else {
             selective_scan_fwd_launch<128, 16, input_t, weight_t>(params, stream);
         }
-    }
-    #ifdef USE_ROCM
-    else {
+    #else
         if (params.seqlen <= 256) {
             selective_scan_fwd_launch<64, 4, input_t, weight_t>(params, stream);
         } else if (params.seqlen <= 512) {
@@ -380,6 +372,5 @@ void selective_scan_fwd_cuda(SSMParamsBase &params, cudaStream_t stream) {
         } else {
             selective_scan_fwd_launch<128, 16, input_t, weight_t>(params, stream);
         }
-    }
     #endif
 }

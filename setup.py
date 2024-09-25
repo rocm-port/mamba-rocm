@@ -19,7 +19,6 @@ from wheel.bdist_wheel import bdist_wheel as _bdist_wheel
 import torch
 from torch.utils.cpp_extension import (
     BuildExtension,
-    CppExtension,
     CUDAExtension,
     CUDA_HOME,
     HIP_HOME
@@ -86,7 +85,7 @@ def get_hip_version(rocm_dir):
 
     for line in raw_output.split("\n"):
         if "HIP version" in line:
-            rocm_version = parse(line.split()[-1].replace("-", "+")) # local version is not parsed correctly
+            rocm_version = parse(line.split()[-1].rstrip('-').replace('-', '+')) # local version is not parsed correctly
             return line, rocm_version
 
     return None, None
@@ -95,7 +94,7 @@ def get_hip_version(rocm_dir):
 def get_torch_hip_version():
 
     if torch.version.hip:
-        return parse(torch.version.hip.split()[-1].replace("-", "+"))
+        return parse(torch.version.hip.split()[-1].rstrip('-').replace('-', '+'))
     else:
         return None
 
@@ -129,10 +128,6 @@ def append_nvcc_threads(nvcc_extra_args):
 
 cmdclass = {}
 ext_modules = []
-
-
-if not torch.cuda.is_available():
-    raise RuntimeError(f"CUDA/HIP not available within Pytorch. {PACKAGE_NAME} is intended for a CUDA/HIP-enabled Pytorch installation.")
 
 
 HIP_BUILD = bool(torch.version.hip)
@@ -211,7 +206,6 @@ if not SKIP_CUDA_BUILD:
                 f"--offload-arch={os.getenv('HIP_ARCHITECTURES', 'native')}",
                 "-U__CUDA_NO_HALF_OPERATORS__",
                 "-U__CUDA_NO_HALF_CONVERSIONS__",
-                "-DCK_FMHA_FWD_FAST_EXP2=1",
                 "-fgpu-flush-denormals-to-zero",
             ]
             + cc_flag,
@@ -354,31 +348,13 @@ setup(
             "mamba_ssm.egg-info",
         )
     ),
-    author="Tri Dao, Albert Gu",
-    author_email="tri@tridao.me, agu@cs.cmu.edu",
-    description="Mamba state-space model",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/state-spaces/mamba",
-    classifiers=[
-        "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: BSD License",
-        "Operating System :: Unix",
-    ],
+    
     ext_modules=ext_modules,
     cmdclass={"bdist_wheel": CachedWheelsCommand, "build_ext": BuildExtension}
     if ext_modules
     else {
         "bdist_wheel": CachedWheelsCommand,
-    },
-    python_requires=">=3.7",
-    install_requires=[
-        "torch",
-        "packaging",
-        "ninja",
-        "einops",
-        "triton",
-        "transformers",
-        # "causal_conv1d>=1.2.0",
-    ],
+    }
 )
